@@ -34,3 +34,6 @@ coverage/
 
 # Database
 dump/
+
+# Uploads
+backend/uploads/
