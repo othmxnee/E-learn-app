@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../../services/api';
 import { FileText, Download, Upload, Clock, Plus, X, Users } from 'lucide-react';
+import { FILE_BASE_URL } from '../../config';
 
 const ModuleDetails = () => {
     const { id } = useParams(); // Allocation ID
@@ -188,7 +189,7 @@ const ModuleDetails = () => {
                                 </div>
                                 {item.fileUrl && (
                                     <a
-                                        href={`http://localhost:5000${item.fileUrl}`}
+                                        href={`${FILE_BASE_URL}${item.fileUrl}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="p-3 rounded-xl bg-gray-50 text-gray-400 hover:bg-primary hover:text-white transition-all"
@@ -260,7 +261,7 @@ const ModuleDetails = () => {
                                                         {new Date(assign.mySubmission.submittedAt).toLocaleString()}
                                                     </p>
                                                     <a
-                                                        href={`http://localhost:5000${assign.mySubmission.fileUrl}`}
+                                                        href={`${FILE_BASE_URL}${assign.mySubmission.fileUrl}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="mt-4 inline-flex items-center gap-2 text-primary font-bold text-sm hover:underline"
@@ -333,7 +334,7 @@ const ModuleDetails = () => {
                                             </td>
                                             <td className="py-4 text-right">
                                                 <a
-                                                    href={`http://localhost:5000${sub.fileUrl}`}
+                                                    href={`${FILE_BASE_URL}${sub.fileUrl}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="inline-flex items-center gap-2 text-primary font-bold hover:underline"

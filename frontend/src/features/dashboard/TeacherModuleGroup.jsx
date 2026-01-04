@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../../services/api';
 import { FileText, Download, Upload, Clock, Plus, X, Users, ChevronRight, ChevronDown } from 'lucide-react';
+import { FILE_BASE_URL } from '../../config';
 
 const TeacherModuleGroup = () => {
     const { moduleId, levelId } = useParams();
@@ -215,8 +216,8 @@ const TeacherModuleGroup = () => {
                             <div key={item._id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-md transition-shadow">
                                 <div className="flex items-center">
                                     <div className={`p-3 rounded-xl mr-4 ${item.type === 'COURSE' ? 'bg-blue-50 text-blue-600' :
-                                            item.type === 'TD' ? 'bg-green-50 text-green-600' :
-                                                'bg-purple-50 text-purple-600'
+                                        item.type === 'TD' ? 'bg-green-50 text-green-600' :
+                                            'bg-purple-50 text-purple-600'
                                         }`}>
                                         <FileText className="w-7 h-7" />
                                     </div>
@@ -231,7 +232,7 @@ const TeacherModuleGroup = () => {
                                 </div>
                                 {item.fileUrl && (
                                     <a
-                                        href={`http://localhost:5000${item.fileUrl}`}
+                                        href={`${FILE_BASE_URL}${item.fileUrl}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="bg-gray-50 p-2 rounded-full text-primary hover:bg-primary hover:text-white transition-all"
@@ -346,7 +347,7 @@ const TeacherModuleGroup = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right">
                                                 <a
-                                                    href={`http://localhost:5000${sub.fileUrl}`}
+                                                    href={`${FILE_BASE_URL}${sub.fileUrl}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="inline-flex items-center text-primary hover:underline font-bold"

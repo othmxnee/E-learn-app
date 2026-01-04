@@ -20,8 +20,7 @@ const connectDB = async () => {
     });
 
   } catch (error) {
-    console.error(`Error: ${error.message}`);
-    console.error('Make sure MongoDB is running on mongodb://localhost:27017');
+    console.error(`MongoDB Connection Error: ${error.message}`);
     process.exit(1);
   }
 };
