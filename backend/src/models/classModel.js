@@ -1,0 +1,26 @@
+const mongoose = require('mongoose');
+
+const classSchema = new mongoose.Schema({
+    levelId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AcademicLevel',
+        required: true,
+    },
+    speciality: {
+        type: String,
+        // Optional, e.g., "IS", "IV". Required if level.hasSpeciality is true
+    },
+    classNumber: {
+        type: Number,
+        required: true,
+    },
+    name: {
+        type: String,
+        // Auto-generated or manually set, e.g., "CS2-IS-1"
+    },
+}, {
+    timestamps: true,
+});
+
+const Class = mongoose.model('Class', classSchema);
+module.exports = Class;
