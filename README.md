@@ -73,10 +73,6 @@ MongoDB
 
 JWT Authentication
 
-Getting Started
-git clone https://github.com/your-username/your-repo-name.git
-cd backend && npm install
-cd ../frontend && npm install
-mongod
-npm run dev
+Live demo:
+https://elearn-27007.netlify.app/
 
