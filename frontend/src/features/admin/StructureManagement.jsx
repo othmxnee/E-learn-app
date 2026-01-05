@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
-import { Plus, Layers, Trash2, Edit2, X, Users } from 'lucide-react';
+import { Plus, Layers, Trash2, Edit2, X, Users, Upload } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const StructureManagement = () => {
     const [levels, setLevels] = useState([]);
@@ -27,6 +28,10 @@ const StructureManagement = () => {
         specialities: [{ name: '', count: 1 }]
     });
 
+    const [submitting, setSubmitting] = useState(false);
+    const [assigning, setAssigning] = useState(false);
+    const [importing, setImporting] = useState(false);
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -48,28 +53,37 @@ const StructureManagement = () => {
 
     const handleCreateLevel = async (e) => {
         e.preventDefault();
+        setSubmitting(true);
+        const loadingToast = toast.loading(isEditing ? 'Updating level...' : 'Creating level...');
         try {
             if (isEditing) {
                 const res = await api.put(`/admin/academic-structure/levels/${editId}`, levelForm);
                 setLevels(levels.map(l => l._id === editId ? res.data : l));
+                toast.success('Level updated successfully', { id: loadingToast });
             } else {
-                const res = await api.post('/admin/academic-structure/levels', levelForm);
-                // Refresh all data as classes might have been created
+                await api.post('/admin/academic-structure/levels', levelForm);
                 fetchData();
+                toast.success('Level and classes created successfully', { id: loadingToast });
             }
             closeModal();
         } catch (error) {
-            alert(error.response?.data?.message || 'Error saving level');
+            console.error('Error saving level:', error);
+            toast.error(error.response?.data?.message || 'Error saving level', { id: loadingToast });
+        } finally {
+            setSubmitting(false);
         }
     };
 
     const handleDeleteLevel = async (id) => {
         if (window.confirm('Are you sure? This will delete all classes in this level.')) {
+            const loadingToast = toast.loading('Deleting level...');
             try {
                 await api.delete(`/admin/academic-structure/levels/${id}`);
                 fetchData();
+                toast.success('Level deleted successfully', { id: loadingToast });
             } catch (error) {
-                alert('Error deleting level');
+                console.error('Error deleting level:', error);
+                toast.error('Error deleting level', { id: loadingToast });
             }
         }
     };
@@ -117,53 +131,57 @@ const StructureManagement = () => {
 
     const openAssignModal = async (cls) => {
         setSelectedClass(cls);
+        const loadingToast = toast.loading('Loading students...');
         try {
-            // Fetch all students and students in this class
             const [allUsersRes, classStudentsRes] = await Promise.all([
                 api.get('/admin/users'),
                 api.get(`/admin/classes/${cls._id}/students`)
             ]);
 
-            // Filter only students
             const allStudents = allUsersRes.data.filter(u => u.role === 'STUDENT');
             setStudents(allStudents);
 
-            // Pre-select students already in this class
             const currentStudentIds = classStudentsRes.data.map(s => s._id);
             setSelectedStudents(currentStudentIds);
             setShowAssignModal(true);
+            toast.dismiss(loadingToast);
         } catch (error) {
             console.error('Error fetching students:', error);
-            alert('Error loading students');
+            toast.error('Error loading students', { id: loadingToast });
         }
     };
 
     const handleAssignStudents = async () => {
+        setAssigning(true);
+        const loadingToast = toast.loading('Assigning students...');
         try {
             await api.post(`/admin/classes/${selectedClass._id}/students`, {
                 studentIds: selectedStudents
             });
-            alert('Students assigned successfully');
+            toast.success('Students assigned successfully', { id: loadingToast });
             setShowAssignModal(false);
             fetchData();
         } catch (error) {
-            alert(error.response?.data?.message || 'Error assigning students');
+            console.error('Error assigning students:', error);
+            toast.error(error.response?.data?.message || 'Error assigning students', { id: loadingToast });
+        } finally {
+            setAssigning(false);
         }
     };
 
     const handleRemoveStudent = async (studentId) => {
         if (!window.confirm('Remove this student from the class?')) return;
 
+        const loadingToast = toast.loading('Removing student...');
         try {
             await api.delete(`/admin/classes/${selectedClass._id}/students/${studentId}`);
-            // Update local state
             setSelectedStudents(selectedStudents.filter(id => id !== studentId));
-            // Refresh student list
             const res = await api.get('/admin/users');
             setStudents(res.data.filter(u => u.role === 'STUDENT'));
-            alert('Student removed from class');
+            toast.success('Student removed from class', { id: loadingToast });
         } catch (error) {
-            alert('Error removing student');
+            console.error('Error removing student:', error);
+            toast.error('Error removing student', { id: loadingToast });
         }
     };
 
@@ -171,6 +189,8 @@ const StructureManagement = () => {
         const file = e.target.files[0];
         if (!file) return;
 
+        setImporting(true);
+        const loadingToast = toast.loading('Importing students...');
         const formData = new FormData();
         formData.append('file', file);
 
@@ -178,22 +198,21 @@ const StructureManagement = () => {
             const res = await api.post('/admin/users/import', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            alert(res.data.message);
-            // Refresh data
+            toast.success(res.data.message || 'Import successful', { id: loadingToast });
             fetchData();
             const allUsersRes = await api.get('/admin/users');
             setStudents(allUsersRes.data.filter(u => u.role === 'STUDENT'));
 
-            // Refresh selected students for current class
             if (selectedClass) {
                 const classStudentsRes = await api.get(`/admin/classes/${selectedClass._id}/students`);
                 setSelectedStudents(classStudentsRes.data.map(s => s._id));
             }
         } catch (error) {
-            alert(error.response?.data?.message || 'Error importing students');
+            console.error('Error importing students:', error);
+            toast.error(error.response?.data?.message || 'Error importing students', { id: loadingToast });
+        } finally {
+            setImporting(false);
         }
-
-        // Reset file input
         e.target.value = '';
     };
 
@@ -303,11 +322,11 @@ const StructureManagement = () => {
 
             {/* Level Modal */}
             {showLevelModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded w-[500px] max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-lg">{isEditing ? 'Edit Level' : 'Add Academic Level'}</h3>
-                            <button onClick={closeModal}><X className="w-5 h-5" /></button>
+                <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-2xl font-bold text-gray-800">{isEditing ? 'Edit Level' : 'Add Academic Level'}</h3>
+                            <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors"><X className="w-6 h-6" /></button>
                         </div>
                         <form onSubmit={handleCreateLevel}>
                             <div className="mb-3">
@@ -376,9 +395,21 @@ const StructureManagement = () => {
                                 </div>
                             )}
 
-                            <div className="flex justify-end gap-2 mt-6">
-                                <button type="button" onClick={closeModal} className="bg-gray-300 px-3 py-1 rounded">Cancel</button>
-                                <button type="submit" className="bg-primary text-white px-3 py-1 rounded">Save</button>
+                            <div className="flex justify-end gap-3 mt-8">
+                                <button
+                                    type="button"
+                                    onClick={closeModal}
+                                    className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className="bg-primary text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {submitting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Save Level'}
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -387,11 +418,11 @@ const StructureManagement = () => {
 
             {/* Assign Students Modal */}
             {showAssignModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded w-[700px] max-h-[90vh] flex flex-col">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-lg">Manage Students - {selectedClass?.name}</h3>
-                            <button onClick={() => setShowAssignModal(false)}><X className="w-5 h-5" /></button>
+                <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white p-8 rounded-3xl w-full max-w-3xl shadow-2xl border border-gray-100 relative max-h-[90vh] flex flex-col">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-2xl font-bold text-gray-800">Manage Students - {selectedClass?.name}</h3>
+                            <button onClick={() => setShowAssignModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X className="w-6 h-6" /></button>
                         </div>
 
                         {/* CSV Upload Section */}
@@ -471,13 +502,24 @@ const StructureManagement = () => {
                             </div>
                         </div>
 
-                        <div className="flex justify-between items-center pt-3 border-t">
-                            <span className="text-sm text-gray-500">
-                                {students.filter(s => !selectedStudents.includes(s._id) && selectedStudents.includes(s._id)).length} new students to add
+                        <div className="flex justify-between items-center pt-6 border-t border-gray-100">
+                            <span className="text-sm text-gray-500 font-medium">
+                                {selectedStudents.length} students selected
                             </span>
-                            <div className="flex gap-2">
-                                <button onClick={() => setShowAssignModal(false)} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
-                                <button onClick={handleAssignStudents} className="bg-primary text-white px-4 py-2 rounded hover:bg-blue-700">Save Changes</button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowAssignModal(false)}
+                                    className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAssignStudents}
+                                    disabled={assigning}
+                                    className="bg-primary text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {assigning ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Save Changes'}
+                                </button>
                             </div>
                         </div>
                     </div>

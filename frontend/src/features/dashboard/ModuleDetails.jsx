@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../../services/api';
-import { FileText, Download, Upload, Clock, Plus, X, Users } from 'lucide-react';
+import { FileText, Download, Upload, Clock, Plus, X, Users, CheckCircle } from 'lucide-react';
 import { FILE_BASE_URL } from '../../config';
+import toast from 'react-hot-toast';
 
 const ModuleDetails = () => {
     const { id } = useParams(); // Allocation ID
@@ -20,6 +21,7 @@ const ModuleDetails = () => {
 
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [assignForm, setAssignForm] = useState({ title: '', description: '', deadline: '' });
+    const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -44,41 +46,55 @@ const ModuleDetails = () => {
         const formData = new FormData();
         formData.append('file', file);
         setUploading(true);
+        const loadingToast = toast.loading('Uploading file...');
         try {
             const res = await api.post('/upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             setUploading(false);
+            toast.success('File uploaded successfully', { id: loadingToast });
             return res.data.filePath;
         } catch (error) {
             console.error('Upload failed:', error);
             setUploading(false);
-            alert('File upload failed');
+            toast.error('File upload failed', { id: loadingToast });
             return null;
         }
     };
 
     const handleAddContent = async (e) => {
         e.preventDefault();
+        setSubmitting(true);
+        const loadingToast = toast.loading('Adding resource...');
         try {
             const res = await api.post(`/modules/${id}/content`, contentForm);
             setContent([res.data, ...content]);
             setShowContentModal(false);
             setContentForm({ type: 'COURSE', title: '', fileUrl: '', description: '' });
+            toast.success('Resource added successfully', { id: loadingToast });
         } catch (error) {
-            alert('Error adding content');
+            console.error('Error adding content:', error);
+            toast.error('Error adding content', { id: loadingToast });
+        } finally {
+            setSubmitting(false);
         }
     };
 
     const handleCreateAssignment = async (e) => {
         e.preventDefault();
+        setSubmitting(true);
+        const loadingToast = toast.loading('Creating assignment...');
         try {
             const res = await api.post(`/modules/${id}/assignments`, assignForm);
             setAssignments([...assignments, res.data]);
             setShowAssignModal(false);
             setAssignForm({ title: '', description: '', deadline: '' });
+            toast.success('Assignment created successfully', { id: loadingToast });
         } catch (error) {
-            alert('Error creating assignment');
+            console.error('Error creating assignment:', error);
+            toast.error('Error creating assignment', { id: loadingToast });
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -87,12 +103,14 @@ const ModuleDetails = () => {
         const fileUrl = await handleFileUpload(file);
         if (!fileUrl) return;
 
+        const loadingToast = toast.loading('Submitting assignment...');
         try {
             await api.post(`/assignments/${assignmentId}/submit`, { fileUrl });
-            alert('Assignment submitted successfully');
+            toast.success('Assignment submitted successfully', { id: loadingToast });
             fetchData(); // Refresh to show status
         } catch (error) {
-            alert('Error submitting assignment');
+            console.error('Error submitting assignment:', error);
+            toast.error('Error submitting assignment', { id: loadingToast });
         }
     };
 
@@ -101,13 +119,16 @@ const ModuleDetails = () => {
     const [submissions, setSubmissions] = useState([]);
 
     const fetchSubmissions = async (assignment) => {
+        const loadingToast = toast.loading('Fetching submissions...');
         try {
             const res = await api.get(`/assignments/${assignment._id}/submissions`);
             setSubmissions(res.data);
             setSelectedAssignment(assignment);
             setShowSubmissionsModal(true);
+            toast.dismiss(loadingToast);
         } catch (error) {
-            alert('Error fetching submissions');
+            console.error('Error fetching submissions:', error);
+            toast.error('Error fetching submissions', { id: loadingToast });
         }
     };
 
@@ -360,11 +381,11 @@ const ModuleDetails = () => {
 
             {/* Content Modal */}
             {showContentModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded w-96">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold">Add Content</h3>
-                            <button onClick={() => setShowContentModal(false)}><X className="w-5 h-5" /></button>
+                <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-2xl font-bold text-gray-800">Add Resource</h3>
+                            <button onClick={() => setShowContentModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X className="w-6 h-6" /></button>
                         </div>
                         <form onSubmit={handleAddContent}>
                             <div className="mb-3">
@@ -397,9 +418,21 @@ const ModuleDetails = () => {
                                 <label className="block text-sm mb-1">Description</label>
                                 <textarea className="border w-full p-2 rounded" value={contentForm.description} onChange={e => setContentForm({ ...contentForm, description: e.target.value })} />
                             </div>
-                            <div className="flex justify-end gap-2">
-                                <button type="button" onClick={() => setShowContentModal(false)} className="bg-gray-300 px-3 py-1 rounded">Cancel</button>
-                                <button type="submit" className="bg-primary text-white px-3 py-1 rounded" disabled={uploading}>Save</button>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowContentModal(false)}
+                                    className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting || uploading}
+                                    className="bg-primary text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {submitting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Save Resource'}
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -408,11 +441,11 @@ const ModuleDetails = () => {
 
             {/* Assignment Modal */}
             {showAssignModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded w-96">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold">Create Assignment</h3>
-                            <button onClick={() => setShowAssignModal(false)}><X className="w-5 h-5" /></button>
+                <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-2xl font-bold text-gray-800">Create Assignment</h3>
+                            <button onClick={() => setShowAssignModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X className="w-6 h-6" /></button>
                         </div>
                         <form onSubmit={handleCreateAssignment}>
                             <div className="mb-3">
@@ -427,9 +460,21 @@ const ModuleDetails = () => {
                                 <label className="block text-sm mb-1">Description</label>
                                 <textarea className="border w-full p-2 rounded" value={assignForm.description} onChange={e => setAssignForm({ ...assignForm, description: e.target.value })} />
                             </div>
-                            <div className="flex justify-end gap-2">
-                                <button type="button" onClick={() => setShowAssignModal(false)} className="bg-gray-300 px-3 py-1 rounded">Cancel</button>
-                                <button type="submit" className="bg-primary text-white px-3 py-1 rounded">Save</button>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAssignModal(false)}
+                                    className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className="bg-primary text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {submitting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Create Assignment'}
+                                </button>
                             </div>
                         </form>
                     </div>

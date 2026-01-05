@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import api from '../../services/api';
 import { FileText, Download, Upload, Clock, Plus, X, Users, ChevronRight, ChevronDown } from 'lucide-react';
 import { FILE_BASE_URL } from '../../config';
+import toast from 'react-hot-toast';
 
 const TeacherModuleGroup = () => {
     const { moduleId, levelId } = useParams();
@@ -30,6 +31,7 @@ const TeacherModuleGroup = () => {
 
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [assignForm, setAssignForm] = useState({ title: '', description: '', deadline: '' });
+    const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
         fetchGroupData();
@@ -92,22 +94,26 @@ const TeacherModuleGroup = () => {
         const formData = new FormData();
         formData.append('file', file);
         setUploading(true);
+        const loadingToast = toast.loading('Uploading file...');
         try {
             const res = await api.post('/upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             setUploading(false);
+            toast.success('File uploaded successfully', { id: loadingToast });
             return res.data.filePath;
         } catch (error) {
             console.error('Upload failed:', error);
             setUploading(false);
-            alert('File upload failed');
+            toast.error('File upload failed', { id: loadingToast });
             return null;
         }
     };
 
     const handleAddContentBulk = async (e) => {
         e.preventDefault();
+        setSubmitting(true);
+        const loadingToast = toast.loading('Adding resources to all classes...');
         try {
             const allocationIds = allocations.map(a => a._id);
             await api.post('/modules/bulk/content', {
@@ -117,13 +123,19 @@ const TeacherModuleGroup = () => {
             setShowContentModal(false);
             setContentForm({ type: 'COURSE', title: '', fileUrl: '', description: '' });
             fetchGroupData();
+            toast.success('Resources added successfully to all classes', { id: loadingToast });
         } catch (error) {
-            alert('Error adding content');
+            console.error('Error adding content:', error);
+            toast.error('Error adding content', { id: loadingToast });
+        } finally {
+            setSubmitting(false);
         }
     };
 
     const handleCreateAssignmentBulk = async (e) => {
         e.preventDefault();
+        setSubmitting(true);
+        const loadingToast = toast.loading('Creating assignments for all classes...');
         try {
             const allocationIds = allocations.map(a => a._id);
             await api.post('/modules/bulk/assignments', {
@@ -133,8 +145,12 @@ const TeacherModuleGroup = () => {
             setShowAssignModal(false);
             setAssignForm({ title: '', description: '', deadline: '' });
             fetchGroupData();
+            toast.success('Assignments created successfully for all classes', { id: loadingToast });
         } catch (error) {
-            alert('Error creating assignment');
+            console.error('Error creating assignment:', error);
+            toast.error('Error creating assignment', { id: loadingToast });
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -142,14 +158,17 @@ const TeacherModuleGroup = () => {
         setSelectedAssignment(groupedAssign);
         setSubmissions([]);
         setShowSubmissionsModal(true);
+        const loadingToast = toast.loading('Fetching submissions...');
 
         try {
             const submissionPromises = groupedAssign.relatedIds.map(id => api.get(`/assignments/${id}/submissions`));
             const results = await Promise.all(submissionPromises);
             const allSubmissions = results.flatMap(r => r.data);
             setSubmissions(allSubmissions);
+            toast.dismiss(loadingToast);
         } catch (error) {
             console.error('Error fetching submissions:', error);
+            toast.error('Error fetching submissions', { id: loadingToast });
         }
     };
 
@@ -309,12 +328,12 @@ const TeacherModuleGroup = () => {
 
             {/* Submissions Modal */}
             {showSubmissionsModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-gray-100">
+                        <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                             <div>
-                                <h3 className="text-xl font-bold text-gray-800">Submissions: {selectedAssignment?.title}</h3>
-                                <p className="text-sm text-gray-500">Total: {submissions.length} student(s) submitted</p>
+                                <h3 className="text-2xl font-bold text-gray-800">Submissions: {selectedAssignment?.title}</h3>
+                                <p className="text-sm text-gray-500 font-medium mt-1">Total: {submissions.length} student(s) submitted</p>
                             </div>
                             <button onClick={() => setShowSubmissionsModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
                                 <X className="w-6 h-6 text-gray-500" />
@@ -374,8 +393,8 @@ const TeacherModuleGroup = () => {
 
             {/* Content Modal */}
             {showContentModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-2xl">
+                <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-2xl font-bold text-gray-800">Bulk Upload</h3>
                             <button onClick={() => setShowContentModal(false)} className="p-1 hover:bg-gray-100 rounded-full"><X className="w-6 h-6 text-gray-400" /></button>
@@ -413,9 +432,21 @@ const TeacherModuleGroup = () => {
                                 <label className="block text-sm font-bold text-gray-700 mb-1">Description (Optional)</label>
                                 <textarea className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none h-24" value={contentForm.description} onChange={e => setContentForm({ ...contentForm, description: e.target.value })} placeholder="Briefly describe this resource..." />
                             </div>
-                            <div className="flex gap-3 pt-4">
-                                <button type="button" onClick={() => setShowContentModal(false)} className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors">Cancel</button>
-                                <button type="submit" className="flex-1 bg-primary text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50" disabled={uploading || !contentForm.fileUrl}>Upload to All</button>
+                            <div className="flex gap-3 pt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowContentModal(false)}
+                                    className="flex-1 px-6 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting || uploading || !contentForm.fileUrl}
+                                    className="flex-1 bg-primary text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {submitting ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Upload to All'}
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -424,8 +455,8 @@ const TeacherModuleGroup = () => {
 
             {/* Assignment Modal */}
             {showAssignModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-2xl">
+                <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-2xl font-bold text-gray-800">New Level Assignment</h3>
                             <button onClick={() => setShowAssignModal(false)} className="p-1 hover:bg-gray-100 rounded-full"><X className="w-6 h-6 text-gray-400" /></button>
@@ -443,9 +474,21 @@ const TeacherModuleGroup = () => {
                                 <label className="block text-sm font-bold text-gray-700 mb-1">Instructions</label>
                                 <textarea className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none h-32" value={assignForm.description} onChange={e => setAssignForm({ ...assignForm, description: e.target.value })} placeholder="Provide clear instructions for students..." />
                             </div>
-                            <div className="flex gap-3 pt-4">
-                                <button type="button" onClick={() => setShowAssignModal(false)} className="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors">Cancel</button>
-                                <button type="submit" className="flex-1 bg-primary text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors shadow-lg">Create for All</button>
+                            <div className="flex gap-3 pt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAssignModal(false)}
+                                    className="flex-1 px-6 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className="flex-1 bg-primary text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {submitting ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Create for All'}
+                                </button>
                             </div>
                         </form>
                     </div>

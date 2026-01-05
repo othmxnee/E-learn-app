@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
-import { Plus, Trash2, Upload } from 'lucide-react';
+import { Plus, Trash2, Upload, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const UserManagement = () => {
     const [users, setUsers] = useState([]);
@@ -8,6 +9,8 @@ const UserManagement = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [importing, setImporting] = useState(false);
 
     const [formData, setFormData] = useState({
         username: '',
@@ -40,17 +43,22 @@ const UserManagement = () => {
 
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this user?')) {
+            const loadingToast = toast.loading('Deleting user...');
             try {
                 await api.delete(`/admin/users/${id}`);
                 setUsers(users.filter((user) => user._id !== id));
+                toast.success('User deleted successfully', { id: loadingToast });
             } catch (error) {
                 console.error('Error deleting user:', error);
+                toast.error('Failed to delete user', { id: loadingToast });
             }
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setSubmitting(true);
+        const loadingToast = toast.loading('Creating user...');
         try {
             const response = await api.post('/admin/users', formData);
             setUsers([...users, response.data]);
@@ -62,15 +70,21 @@ const UserManagement = () => {
                 role: 'STUDENT',
                 matricule: '',
             });
+            toast.success('User created successfully', { id: loadingToast });
         } catch (error) {
             console.error('Error creating user:', error);
-            alert(error.response?.data?.message || 'Error creating user');
+            toast.error(error.response?.data?.message || 'Error creating user', { id: loadingToast });
+        } finally {
+            setSubmitting(false);
         }
     };
 
     const handleImport = async (e) => {
         e.preventDefault();
         if (!importFile) return;
+
+        setImporting(true);
+        const loadingToast = toast.loading('Importing users... This may take a moment.');
 
         const formData = new FormData();
         formData.append('file', importFile);
@@ -79,12 +93,15 @@ const UserManagement = () => {
             const res = await api.post('/admin/users/import', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
-            alert(res.data.message);
+            toast.success(res.data.message || 'Import completed successfully', { id: loadingToast, duration: 5000 });
             setShowImportModal(false);
+            setImportFile(null);
             fetchData();
         } catch (error) {
             console.error('Error importing users:', error);
-            alert('Error importing users');
+            toast.error('Error importing users. Please check your CSV format.', { id: loadingToast });
+        } finally {
+            setImporting(false);
         }
     };
 
@@ -92,11 +109,11 @@ const UserManagement = () => {
     const admins = users.filter(u => u.role === 'ADMIN');
     const teachers = users.filter(u => u.role === 'TEACHER');
     const students = users.filter(u => u.role === 'STUDENT');
-    
+
     // Sort students by class
     const studentsWithClass = students.filter(s => s.classId);
     const studentsWithoutClass = students.filter(s => !s.classId);
-    
+
     studentsWithClass.sort((a, b) => {
         const classA = classes.find(c => c._id === a.classId)?.name || '';
         const classB = classes.find(c => c._id === b.classId)?.name || '';
@@ -263,9 +280,15 @@ const UserManagement = () => {
 
             {/* Add User Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-8 rounded-lg w-96">
-                        <h2 className="text-xl font-bold mb-4">Add New User</h2>
+                <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative">
+                        <button
+                            onClick={() => setShowModal(false)}
+                            className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                            <X className="w-6 h-6" />
+                        </button>
+                        <h2 className="text-2xl font-bold mb-6 text-gray-800">Add New User</h2>
                         <form onSubmit={handleSubmit}>
                             <div className="mb-4">
                                 <label className="block text-sm font-bold mb-2">Role</label>
@@ -329,19 +352,20 @@ const UserManagement = () => {
                                 </div>
                             )}
 
-                            <div className="flex justify-end gap-2">
+                            <div className="flex justify-end gap-3 pt-4">
                                 <button
                                     type="button"
                                     onClick={() => setShowModal(false)}
-                                    className="bg-gray-300 px-4 py-2 rounded"
+                                    className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-all"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="bg-primary text-white px-4 py-2 rounded"
+                                    disabled={submitting}
+                                    className="bg-primary text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 flex items-center gap-2"
                                 >
-                                    Save
+                                    {submitting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Save User'}
                                 </button>
                             </div>
                         </form>
@@ -351,9 +375,15 @@ const UserManagement = () => {
 
             {/* Import Modal */}
             {showImportModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-8 rounded-lg w-96">
-                        <h2 className="text-xl font-bold mb-4">Import Users (CSV)</h2>
+                <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative">
+                        <button
+                            onClick={() => setShowImportModal(false)}
+                            className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                            <X className="w-6 h-6" />
+                        </button>
+                        <h2 className="text-2xl font-bold mb-6 text-gray-800">Import Users (CSV)</h2>
                         <form onSubmit={handleImport}>
                             <div className="mb-4">
                                 <label className="block text-sm font-bold mb-2">Select CSV File</label>
@@ -365,22 +395,23 @@ const UserManagement = () => {
                                     className="w-full"
                                 />
                                 <p className="text-xs text-gray-500 mt-2">
-                                    Format: fullName,role,matricule,classId(optional)
+                                    Format: fullName,role,matricule,classId(optional)(ex:CP2-1 or CS1-ISI-1)
                                 </p>
                             </div>
-                            <div className="flex justify-end gap-2">
+                            <div className="flex justify-end gap-3 pt-4">
                                 <button
                                     type="button"
                                     onClick={() => setShowImportModal(false)}
-                                    className="bg-gray-300 px-4 py-2 rounded"
+                                    className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-all"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="bg-green-600 text-white px-4 py-2 rounded"
+                                    disabled={importing}
+                                    className="bg-green-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-100 disabled:opacity-50 flex items-center gap-2"
                                 >
-                                    Upload
+                                    {importing ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Start Import'}
                                 </button>
                             </div>
                         </form>

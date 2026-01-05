@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
-import { Plus, BookOpen, CheckSquare, Square } from 'lucide-react';
+import { Plus, BookOpen, CheckSquare, Square, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const ModuleManagement = () => {
     const [modules, setModules] = useState([]);
@@ -20,6 +21,9 @@ const ModuleManagement = () => {
         selectedSpecialities: [],
         teacherIds: []
     });
+
+    const [submitting, setSubmitting] = useState(false);
+    const [allocating, setAllocating] = useState(false);
 
     // Available specialities for selected level
     const [availableSpecialities, setAvailableSpecialities] = useState([]);
@@ -47,29 +51,40 @@ const ModuleManagement = () => {
 
     const handleCreateModule = async (e) => {
         e.preventDefault();
+        setSubmitting(true);
+        const loadingToast = toast.loading('Creating module...');
         try {
             const res = await api.post('/modules', createForm);
             setModules([...modules, res.data]);
             setShowCreateModal(false);
             setCreateForm({ name: '', description: '' });
+            toast.success('Module created successfully', { id: loadingToast });
         } catch (error) {
-            alert('Error creating module');
+            console.error('Error creating module:', error);
+            toast.error('Error creating module', { id: loadingToast });
+        } finally {
+            setSubmitting(false);
         }
     };
 
     const handleAllocateModule = async (e) => {
         e.preventDefault();
+        setAllocating(true);
+        const loadingToast = toast.loading('Allocating module...');
         try {
             await api.post('/modules/allocate-bulk', {
                 moduleId: allocForm.moduleId,
-                levelIds: [allocForm.levelId], // For now, just one level at a time in the UI
+                levelIds: [allocForm.levelId],
                 teacherIds: allocForm.teacherIds
             });
-            alert('Module allocated successfully to the academic level');
+            toast.success('Module allocated successfully', { id: loadingToast });
             setShowAllocModal(false);
             setAllocForm({ moduleId: '', levelId: '', teacherIds: [] });
         } catch (error) {
-            alert(error.response?.data?.message || 'Error allocating module');
+            console.error('Error allocating module:', error);
+            toast.error(error.response?.data?.message || 'Error allocating module', { id: loadingToast });
+        } finally {
+            setAllocating(false);
         }
     };
 
@@ -118,9 +133,15 @@ const ModuleManagement = () => {
 
             {/* Create Module Modal */}
             {showCreateModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded w-96">
-                        <h3 className="font-bold mb-4">Create Module</h3>
+                <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 relative">
+                        <button
+                            onClick={() => setShowCreateModal(false)}
+                            className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                            <X className="w-6 h-6" />
+                        </button>
+                        <h3 className="text-2xl font-bold mb-6 text-gray-800">Create Module</h3>
                         <form onSubmit={handleCreateModule}>
                             <div className="mb-3">
                                 <label className="block text-sm mb-1">Name</label>
@@ -130,9 +151,21 @@ const ModuleManagement = () => {
                                 <label className="block text-sm mb-1">Description</label>
                                 <textarea className="border w-full p-2 rounded" value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} />
                             </div>
-                            <div className="flex justify-end gap-2">
-                                <button type="button" onClick={() => setShowCreateModal(false)} className="bg-gray-300 px-3 py-1 rounded">Cancel</button>
-                                <button type="submit" className="bg-primary text-white px-3 py-1 rounded">Save</button>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCreateModal(false)}
+                                    className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className="bg-primary text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {submitting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Save Module'}
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -141,9 +174,15 @@ const ModuleManagement = () => {
 
             {/* Allocate Module Modal */}
             {showAllocModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded w-[500px]">
-                        <h3 className="font-bold mb-4">Allocate Module to Academic Level</h3>
+                <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white p-8 rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 relative">
+                        <button
+                            onClick={() => setShowAllocModal(false)}
+                            className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                            <X className="w-6 h-6" />
+                        </button>
+                        <h3 className="text-2xl font-bold mb-6 text-gray-800">Allocate Module to Level</h3>
                         <form onSubmit={handleAllocateModule}>
                             <div className="mb-3">
                                 <label className="block text-sm mb-1 font-medium">Module</label>
@@ -173,12 +212,24 @@ const ModuleManagement = () => {
                                 </select>
                             </div>
 
-                            <div className="flex justify-end gap-2">
-                                <button type="button" onClick={() => {
-                                    setShowAllocModal(false);
-                                    setAllocForm({ moduleId: '', levelId: '', teacherIds: [] });
-                                }} className="bg-gray-300 px-3 py-1 rounded">Cancel</button>
-                                <button type="submit" className="bg-green-600 text-white px-3 py-1 rounded">Allocate</button>
+                            <div className="flex justify-end gap-3 pt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowAllocModal(false);
+                                        setAllocForm({ moduleId: '', levelId: '', teacherIds: [] });
+                                    }}
+                                    className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={allocating}
+                                    className="bg-green-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-100 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {allocating ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Allocate Module'}
+                                </button>
                             </div>
                         </form>
                     </div>

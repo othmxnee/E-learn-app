@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { Toaster } from 'react-hot-toast';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import LandingPage from './pages/LandingPage';
@@ -28,6 +29,7 @@ function App() {
 
     return (
         <Router>
+            <Toaster position="top-right" reverseOrder={false} />
             <Routes>
                 <Route path="/" element={redirectPath ? <Navigate to={redirectPath} replace /> : <LandingPage />} />
                 <Route path="/login" element={redirectPath ? <Navigate to={redirectPath} replace /> : <LoginPage />} />
