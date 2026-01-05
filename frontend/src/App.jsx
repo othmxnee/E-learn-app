@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import LandingPage from './pages/LandingPage';
 import DashboardLayout from './components/layout/DashboardLayout';
 import AdminDashboard from './features/admin/AdminDashboard';
@@ -30,6 +31,7 @@ function App() {
             <Routes>
                 <Route path="/" element={redirectPath ? <Navigate to={redirectPath} replace /> : <LandingPage />} />
                 <Route path="/login" element={redirectPath ? <Navigate to={redirectPath} replace /> : <LoginPage />} />
+                <Route path="/register" element={redirectPath ? <Navigate to={redirectPath} replace /> : <RegisterPage />} />
 
                 <Route path="/admin" element={<DashboardLayout role="ADMIN" />}>
                     <Route index element={<AdminDashboard />} />

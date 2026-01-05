@@ -44,14 +44,14 @@ const LandingPage = () => {
                                 to="/login"
                                 className="flex items-center justify-center gap-2 bg-primary text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-200"
                             >
-                                Get Started <ArrowRight className="w-5 h-5" />
+                                Sign In <ArrowRight className="w-5 h-5" />
                             </Link>
-                            <a
-                                href="#features"
-                                className="flex items-center justify-center gap-2 bg-gray-50 text-gray-700 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-gray-100 transition-all border border-gray-200"
+                            <Link
+                                to="/register"
+                                className="flex items-center justify-center gap-2 bg-white text-primary px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-50 transition-all border-2 border-primary shadow-lg shadow-blue-50"
                             >
-                                Explore Features
-                            </a>
+                                Register Admin
+                            </Link>
                         </div>
                     </div>
                     <div className="relative">

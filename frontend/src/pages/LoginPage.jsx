@@ -134,7 +134,11 @@ const LoginPage = () => {
                     </form>
 
                     <div className="mt-12 text-center">
-                        <p className="text-gray-500 text-sm">
+                        <p className="text-gray-500 text-sm mb-4">
+                            Don't have an account? <br />
+                            <Link to="/register" className="text-primary font-bold hover:underline">Create an Admin Account</Link>
+                        </p>
+                        <p className="text-gray-500 text-xs">
                             Having trouble logging in? <br />
                             <a href="#" className="text-primary font-bold hover:underline">Contact your administrator</a>
                         </p>

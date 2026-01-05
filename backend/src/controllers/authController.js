@@ -67,8 +67,43 @@ const getMe = async (req, res) => {
     }
 };
 
+// @desc    Register a new admin
+// @route   POST /api/auth/register-admin
+// @access  Public
+const registerAdmin = async (req, res) => {
+    const { fullName, username, password, matricule } = req.body;
+
+    const userExists = await User.findOne({ $or: [{ username }, { matricule }] });
+
+    if (userExists) {
+        return res.status(400).json({ message: 'User already exists with this username or matricule' });
+    }
+
+    const user = await User.create({
+        fullName,
+        username,
+        password,
+        matricule,
+        role: 'ADMIN',
+        firstLogin: false
+    });
+
+    if (user) {
+        res.status(201).json({
+            _id: user._id,
+            username: user.username,
+            fullName: user.fullName,
+            role: user.role,
+            token: generateToken(user._id),
+        });
+    } else {
+        res.status(400).json({ message: 'Invalid user data' });
+    }
+};
+
 module.exports = {
     loginUser,
     changePassword,
     getMe,
+    registerAdmin,
 };
