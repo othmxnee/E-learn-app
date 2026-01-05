@@ -19,6 +19,8 @@ const importData = async () => {
         });
 
         await adminUser.save();
+        adminUser.adminId = adminUser._id;
+        await adminUser.save();
 
         console.log('Data Imported!');
         process.exit();

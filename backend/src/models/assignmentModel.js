@@ -22,9 +22,16 @@ const assignmentSchema = new mongoose.Schema({
         ref: 'User',
         required: true,
     },
+    adminId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
 }, {
     timestamps: true,
 });
+
+assignmentSchema.index({ adminId: 1 });
 
 const Assignment = mongoose.model('Assignment', assignmentSchema);
 module.exports = Assignment;

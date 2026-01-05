@@ -7,16 +7,26 @@ const generateToken = require('../utils/generateToken');
 const loginUser = async (req, res) => {
     const { username, password } = req.body;
 
-    const user = await User.findOne({ username });
+    // Find all users with this username (could be multiple across different admins)
+    const users = await User.find({ username });
 
-    if (user && (await user.matchPassword(password))) {
+    let authenticatedUser = null;
+
+    for (const user of users) {
+        if (await user.matchPassword(password)) {
+            authenticatedUser = user;
+            break;
+        }
+    }
+
+    if (authenticatedUser) {
         res.json({
-            _id: user._id,
-            username: user.username,
-            fullName: user.fullName,
-            role: user.role,
-            firstLogin: user.firstLogin,
-            token: generateToken(user._id),
+            _id: authenticatedUser._id,
+            username: authenticatedUser.username,
+            fullName: authenticatedUser.fullName,
+            role: authenticatedUser.role,
+            firstLogin: authenticatedUser.firstLogin,
+            token: generateToken(authenticatedUser._id),
         });
     } else {
         res.status(401).json({ message: 'Invalid username or password' });
@@ -71,33 +81,40 @@ const getMe = async (req, res) => {
 // @route   POST /api/auth/register-admin
 // @access  Public
 const registerAdmin = async (req, res) => {
-    const { fullName, username, password, matricule } = req.body;
+    try {
+        const { fullName, username, password, matricule } = req.body;
 
-    const userExists = await User.findOne({ $or: [{ username }, { matricule }] });
+        const userExists = await User.findOne({ $or: [{ username }, { matricule }] });
 
-    if (userExists) {
-        return res.status(400).json({ message: 'User already exists with this username or matricule' });
-    }
+        if (userExists) {
+            return res.status(400).json({ message: 'User already exists with this username or matricule' });
+        }
 
-    const user = await User.create({
-        fullName,
-        username,
-        password,
-        matricule,
-        role: 'ADMIN',
-        firstLogin: false
-    });
-
-    if (user) {
-        res.status(201).json({
-            _id: user._id,
-            username: user.username,
-            fullName: user.fullName,
-            role: user.role,
-            token: generateToken(user._id),
+        const user = await User.create({
+            fullName,
+            username,
+            password,
+            matricule,
+            role: 'ADMIN',
+            firstLogin: false
         });
-    } else {
-        res.status(400).json({ message: 'Invalid user data' });
+
+        if (user) {
+            user.adminId = user._id;
+            await user.save();
+            res.status(201).json({
+                _id: user._id,
+                username: user.username,
+                fullName: user.fullName,
+                role: user.role,
+                token: generateToken(user._id),
+            });
+        } else {
+            res.status(400).json({ message: 'Invalid user data' });
+        }
+    } catch (error) {
+        console.error('Register Admin Error:', error);
+        res.status(500).json({ message: error.message });
     }
 };
 

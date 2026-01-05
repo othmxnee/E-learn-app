@@ -24,12 +24,17 @@ const submissionSchema = new mongoose.Schema({
         enum: ['SUBMITTED', 'LATE'],
         default: 'SUBMITTED',
     },
+    adminId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
 }, {
     timestamps: true,
 });
 
-// Ensure a student submits only once per assignment (or handle multiple submissions differently)
-submissionSchema.index({ assignmentId: 1, studentId: 1 }, { unique: true });
+// Ensure a student submits only once per assignment per admin
+submissionSchema.index({ assignmentId: 1, studentId: 1, adminId: 1 }, { unique: true });
 
 const Submission = mongoose.model('Submission', submissionSchema);
 module.exports = Submission;

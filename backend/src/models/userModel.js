@@ -4,7 +4,6 @@ const bcrypt = require('bcryptjs');
 const userSchema = new mongoose.Schema({
     username: {
         type: String,
-        unique: true,
         sparse: true, // Allow null/undefined (for students/teachers who use matricule as username alias)
     },
     password: {
@@ -22,7 +21,6 @@ const userSchema = new mongoose.Schema({
     },
     matricule: {
         type: String,
-        unique: true,
         sparse: true, // Admin might not have matricule
     },
     firstLogin: {
@@ -38,9 +36,17 @@ const userSchema = new mongoose.Schema({
         enum: ['ar', 'en', 'fr'],
         default: 'fr',
     },
+    adminId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+    },
 }, {
     timestamps: true,
 });
+
+userSchema.index({ adminId: 1 });
+userSchema.index({ username: 1, adminId: 1 }, { unique: true });
+userSchema.index({ matricule: 1, adminId: 1 }, { unique: true });
 
 // Match password
 userSchema.methods.matchPassword = async function (enteredPassword) {
@@ -48,9 +54,9 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 };
 
 // Encrypt password using bcrypt
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function () {
     if (!this.isModified('password')) {
-        next();
+        return;
     }
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);

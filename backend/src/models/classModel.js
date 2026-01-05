@@ -18,9 +18,16 @@ const classSchema = new mongoose.Schema({
         type: String,
         // Auto-generated or manually set, e.g., "CS2-IS-1"
     },
+    adminId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
 }, {
     timestamps: true,
 });
+
+classSchema.index({ adminId: 1 });
 
 const Class = mongoose.model('Class', classSchema);
 module.exports = Class;

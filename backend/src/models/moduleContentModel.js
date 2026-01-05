@@ -31,9 +31,16 @@ const moduleContentSchema = new mongoose.Schema({
         ref: 'User',
         required: true,
     },
+    adminId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
 }, {
     timestamps: true,
 });
+
+moduleContentSchema.index({ adminId: 1 });
 
 const ModuleContent = mongoose.model('ModuleContent', moduleContentSchema);
 module.exports = ModuleContent;

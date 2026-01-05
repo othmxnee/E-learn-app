@@ -15,7 +15,7 @@ const createUser = async (req, res) => {
             return res.status(400).json({ message: 'Full name and role are required' });
         }
 
-        let userData = { fullName, role, classId };
+        let userData = { fullName, role, classId, adminId: req.user.adminId };
 
         if (role === 'ADMIN') {
             if (!username || !password) {
@@ -67,7 +67,7 @@ const createUser = async (req, res) => {
 // @route   GET /api/admin/users
 // @access  Private/Admin
 const getUsers = async (req, res) => {
-    const users = await User.find({}).select('-password');
+    const users = await User.find({ adminId: req.user.adminId }).select('-password');
     res.json(users);
 };
 
@@ -75,7 +75,7 @@ const getUsers = async (req, res) => {
 // @route   DELETE /api/admin/users/:id
 // @access  Private/Admin
 const deleteUser = async (req, res) => {
-    const user = await User.findById(req.params.id);
+    const user = await User.findOne({ _id: req.params.id, adminId: req.user.adminId });
 
     if (user) {
         await user.deleteOne();
@@ -96,8 +96,12 @@ const importUsers = async (req, res) => {
     }
 
     try {
-        const count = await importUsersFromCSV(req.file.path);
-        res.json({ message: `Successfully imported ${count} users` });
+        const result = await importUsersFromCSV(req.file.path, req.user.adminId);
+        res.json({
+            message: `Import complete: ${result.created} created, ${result.skipped} skipped.`,
+            created: result.created,
+            skipped: result.skipped
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -110,7 +114,8 @@ const getStudentsByClass = async (req, res) => {
     try {
         const students = await User.find({
             classId: req.params.classId,
-            role: 'STUDENT'
+            role: 'STUDENT',
+            adminId: req.user.adminId
         }).select('-password');
 
         res.json(students);
@@ -133,7 +138,7 @@ const assignStudentsToClass = async (req, res) => {
 
         // Update all students with the new classId
         const result = await User.updateMany(
-            { _id: { $in: studentIds }, role: 'STUDENT' },
+            { _id: { $in: studentIds }, role: 'STUDENT', adminId: req.user.adminId },
             { $set: { classId: classId } }
         );
 
@@ -151,7 +156,7 @@ const assignStudentsToClass = async (req, res) => {
 // @access  Private/Admin
 const removeStudentFromClass = async (req, res) => {
     try {
-        const student = await User.findById(req.params.studentId);
+        const student = await User.findOne({ _id: req.params.studentId, adminId: req.user.adminId });
 
         if (!student) {
             return res.status(404).json({ message: 'Student not found' });
@@ -176,7 +181,7 @@ const removeStudentFromClass = async (req, res) => {
 const updateStudentClass = async (req, res) => {
     try {
         const { classId } = req.body;
-        const student = await User.findById(req.params.userId);
+        const student = await User.findOne({ _id: req.params.userId, adminId: req.user.adminId });
 
         if (!student) {
             return res.status(404).json({ message: 'Student not found' });
@@ -209,10 +214,10 @@ const updateStudentClass = async (req, res) => {
 const getStats = async (req, res) => {
     try {
         const [studentCount, teacherCount, classCount, moduleCount] = await Promise.all([
-            User.countDocuments({ role: 'STUDENT' }),
-            User.countDocuments({ role: 'TEACHER' }),
-            Class.countDocuments({}),
-            Module.countDocuments({}),
+            User.countDocuments({ role: 'STUDENT', adminId: req.user.adminId }),
+            User.countDocuments({ role: 'TEACHER', adminId: req.user.adminId }),
+            Class.countDocuments({ adminId: req.user.adminId }),
+            Module.countDocuments({ adminId: req.user.adminId }),
         ]);
 
         res.json({

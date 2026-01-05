@@ -72,13 +72,21 @@ const seedModulesAndTeachers = async () => {
 
     console.log('Seeding Modules and Teachers...');
 
+    // 0. Get Admin
+    const admin = await User.findOne({ role: 'ADMIN' });
+    if (!admin) {
+        console.error('No admin found. Please run seeder first.');
+        return;
+    }
+    const adminId = admin._id;
+
     // 1. Create Teachers
     const teachers = [];
     for (let i = 0; i < 15; i++) {
         const fullName = generateName();
         const matricule = `T${1000 + i}`;
 
-        let teacher = await User.findOne({ matricule });
+        let teacher = await User.findOne({ matricule, adminId });
         if (!teacher) {
             teacher = await User.create({
                 fullName,
@@ -86,6 +94,7 @@ const seedModulesAndTeachers = async () => {
                 matricule,
                 username: matricule,
                 password: matricule, // Will be hashed by pre-save
+                adminId,
             });
         }
         teachers.push(teacher);
@@ -134,7 +143,7 @@ const seedModulesAndTeachers = async () => {
     };
 
     // 3. Create Modules and Allocate to Levels
-    const levels = await AcademicLevel.find({});
+    const levels = await AcademicLevel.find({ adminId });
 
     for (const [levelKey, modulesList] of Object.entries(modulesData)) {
         // Find the actual level document
@@ -143,21 +152,22 @@ const seedModulesAndTeachers = async () => {
 
         for (const modData of modulesList) {
             // Create Module
-            let module = await Module.findOne({ code: modData.code });
+            let module = await Module.findOne({ code: modData.code, adminId });
             if (!module) {
-                module = await Module.create(modData);
+                module = await Module.create({ ...modData, adminId });
             }
 
             // Assign a random teacher
             const teacher = getRandomElement(teachers);
 
             // Create level-based allocation
-            const exists = await ModuleAllocation.findOne({ moduleId: module._id, levelId: levelDoc._id });
+            const exists = await ModuleAllocation.findOne({ moduleId: module._id, levelId: levelDoc._id, adminId });
             if (!exists) {
                 await ModuleAllocation.create({
                     moduleId: module._id,
                     levelId: levelDoc._id,
-                    teacherIds: [teacher._id]
+                    teacherIds: [teacher._id],
+                    adminId
                 });
             }
         }

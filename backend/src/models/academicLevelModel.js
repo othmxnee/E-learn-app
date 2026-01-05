@@ -15,9 +15,16 @@ const academicLevelSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    adminId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
 }, {
     timestamps: true,
 });
+
+academicLevelSchema.index({ adminId: 1 });
 
 const AcademicLevel = mongoose.model('AcademicLevel', academicLevelSchema);
 module.exports = AcademicLevel;

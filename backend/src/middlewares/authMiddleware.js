@@ -15,6 +15,10 @@ const protect = async (req, res, next) => {
 
             req.user = await User.findById(decoded.id).select('-password');
 
+            if (req.user && req.user.role === 'ADMIN' && !req.user.adminId) {
+                req.user.adminId = req.user._id;
+            }
+
             next();
         } catch (error) {
             console.error(error);
