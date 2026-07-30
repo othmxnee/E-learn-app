@@ -1,8 +1,7 @@
 const fs = require('fs');
 const csv = require('csv-parser');
 const bcrypt = require('bcryptjs');
-const User = require('../models/userModel');
-const Class = require('../models/classModel');
+const { User, Class } = require('../models');
 
 const importUsersFromCSV = (filePath, adminId) => {
     return new Promise((resolve, reject) => {
@@ -24,13 +23,13 @@ const importUsersFromCSV = (filePath, adminId) => {
 
                     // 1. Pre-fetch all classes and existing users FOR THIS ADMIN ONLY
                     const [allClasses, existingUsers] = await Promise.all([
-                        Class.find({ adminId }).lean(),
-                        User.find({ adminId }, 'matricule username').lean()
+                        Class.findAll({ where: { adminId }, attributes: ['id', 'name'] }),
+                        User.findAll({ where: { adminId }, attributes: ['matricule', 'username'] }),
                     ]);
 
-                    const classMap = new Map(allClasses.map(c => [c.name, c._id]));
-                    const existingMatricules = new Set(existingUsers.map(u => u.matricule));
-                    const existingUsernames = new Set(existingUsers.map(u => u.username));
+                    const classMap = new Map(allClasses.map((c) => [c.name, c.id]));
+                    const existingMatricules = new Set(existingUsers.map((u) => u.matricule));
+                    const existingUsernames = new Set(existingUsers.map((u) => u.username));
 
                     // 2. Process rows and prepare data
                     for (let i = 0; i < results.length; i++) {
@@ -67,9 +66,9 @@ const importUsersFromCSV = (filePath, adminId) => {
                             continue;
                         }
 
-                        let classId = undefined;
+                        let classId = null;
                         if (className) {
-                            classId = classMap.get(className.toString().trim());
+                            classId = classMap.get(className.toString().trim()) || null;
                         }
 
                         usersToCreate.push({
@@ -98,7 +97,9 @@ const importUsersFromCSV = (filePath, adminId) => {
                         }));
 
                         console.log(`Inserting ${hashedUsers.length} users into database...`);
-                        await User.insertMany(hashedUsers, { ordered: false });
+                        // bulkCreate skips the password hook, which is what the
+                        // pre-hashed rows above rely on.
+                        await User.bulkCreate(hashedUsers, { ignoreDuplicates: true });
                     }
 
                     // Clean up file

@@ -1,16 +1,15 @@
-const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const User = require('./models/userModel');
 const connectDB = require('./config/db');
+const { User } = require('./models');
 
 dotenv.config();
 
 const importData = async () => {
     try {
         await connectDB();
-        await User.deleteMany();
+        await User.destroy({ where: {} });
 
-        const adminUser = new User({
+        const adminUser = await User.create({
             username: 'admin',
             password: 'admin123', // Will be hashed
             role: 'ADMIN',
@@ -18,8 +17,7 @@ const importData = async () => {
             firstLogin: false,
         });
 
-        await adminUser.save();
-        adminUser.adminId = adminUser._id;
+        adminUser.adminId = adminUser.id;
         await adminUser.save();
 
         console.log('Data Imported!');

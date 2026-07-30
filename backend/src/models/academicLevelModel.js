@@ -1,30 +1,36 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
+const { idAttributes, applyJsonContract } = require('./jsonContract');
 
-const academicLevelSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-        // e.g., CP1, CP2, L1, L2, L3, M1, M2, CS1, CS2, CS3
+const AcademicLevel = sequelize.define(
+    'AcademicLevel',
+    {
+        ...idAttributes,
+        name: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            // e.g., CP1, CP2, L1, L2, L3, M1, M2, CS1, CS2, CS3
+        },
+        type: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: { isIn: [['UNIVERSITY', 'ECOLE_SUPERIEURE']] },
+        },
+        hasSpeciality: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: false,
+        },
+        adminId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
     },
-    type: {
-        type: String,
-        enum: ['UNIVERSITY', 'ECOLE_SUPERIEURE'],
-        required: true,
-    },
-    hasSpeciality: {
-        type: Boolean,
-        default: false,
-    },
-    adminId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-}, {
-    timestamps: true,
-});
+    {
+        tableName: 'academic_levels',
+        indexes: [{ fields: ['adminId'] }],
+    }
+);
 
-academicLevelSchema.index({ adminId: 1 });
+applyJsonContract(AcademicLevel);
 
-const AcademicLevel = mongoose.model('AcademicLevel', academicLevelSchema);
 module.exports = AcademicLevel;

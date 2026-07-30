@@ -1,23 +1,30 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
+const { idAttributes, applyJsonContract } = require('./jsonContract');
 
-const moduleSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
+const Module = sequelize.define(
+    'Module',
+    {
+        ...idAttributes,
+        name: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
+        description: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
+        adminId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
     },
-    description: {
-        type: String,
-    },
-    adminId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-}, {
-    timestamps: true,
-});
+    {
+        tableName: 'modules',
+        indexes: [{ fields: ['adminId'] }],
+    }
+);
 
-moduleSchema.index({ adminId: 1 });
+applyJsonContract(Module);
 
-const Module = mongoose.model('Module', moduleSchema);
 module.exports = Module;

@@ -69,7 +69,7 @@ Node.js
 
 Express.js
 
-MongoDB
+PostgreSQL (Sequelize)
 
 JWT Authentication
 
@@ -85,14 +85,18 @@ elearn-web — the Vite build served as a static site (rootDir frontend)
 
 Steps
 
-1. Create a MongoDB Atlas cluster and allow access from anywhere (0.0.0.0/0),
+1. Create a PostgreSQL database and allow access from anywhere (0.0.0.0/0),
    since Render's free instances do not have static outbound IPs.
 2. In Render, go to New > Blueprint and pick this repository.
-3. When prompted, paste the Atlas connection string as MONGO_URI.
+3. When prompted, paste the connection string as DATABASE_URL.
    JWT_SECRET is generated automatically, and the two services discover each
    other's URLs (CLIENT_URL and VITE_API_URL) without any manual input.
 4. After the first deploy, create the first administrator by calling
    POST /api/auth/register-admin, or through the register page of the frontend.
+
+The tables are created on boot inside the schema named by DB_SCHEMA (elearn by
+default), so the database can be shared with an unrelated application without
+the two colliding.
 
 Notes
 

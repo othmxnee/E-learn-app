@@ -1,66 +1,79 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
+const { sequelize } = require('../config/db');
+const { idAttributes, applyJsonContract } = require('./jsonContract');
 
-const userSchema = new mongoose.Schema({
-    username: {
-        type: String,
-        sparse: true, // Allow null/undefined (for students/teachers who use matricule as username alias)
+const User = sequelize.define(
+    'User',
+    {
+        ...idAttributes,
+        username: {
+            type: DataTypes.STRING,
+            // Null for users who log in with their matricule instead.
+            allowNull: true,
+        },
+        password: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
+        role: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: { isIn: [['ADMIN', 'TEACHER', 'STUDENT']] },
+        },
+        fullName: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
+        matricule: {
+            type: DataTypes.STRING,
+            // Admin might not have matricule
+            allowNull: true,
+        },
+        firstLogin: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: true,
+        },
+        classId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+        },
+        preferredLanguage: {
+            type: DataTypes.STRING,
+            defaultValue: 'fr',
+            validate: { isIn: [['ar', 'en', 'fr']] },
+        },
+        adminId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+        },
     },
-    password: {
-        type: String,
-        required: true,
-    },
-    role: {
-        type: String,
-        enum: ['ADMIN', 'TEACHER', 'STUDENT'],
-        required: true,
-    },
-    fullName: {
-        type: String,
-        required: true,
-    },
-    matricule: {
-        type: String,
-        sparse: true, // Admin might not have matricule
-    },
-    firstLogin: {
-        type: Boolean,
-        default: true,
-    },
-    classId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Class',
-    },
-    preferredLanguage: {
-        type: String,
-        enum: ['ar', 'en', 'fr'],
-        default: 'fr',
-    },
-    adminId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-    },
-}, {
-    timestamps: true,
-});
+    {
+        tableName: 'users',
+        indexes: [
+            { fields: ['adminId'] },
+            // Postgres treats nulls as distinct, which reproduces the sparse
+            // unique indexes these replace.
+            { unique: true, fields: ['username', 'adminId'] },
+            { unique: true, fields: ['matricule', 'adminId'] },
+        ],
+    }
+);
 
-userSchema.index({ adminId: 1 });
-userSchema.index({ username: 1, adminId: 1 }, { unique: true });
-userSchema.index({ matricule: 1, adminId: 1 }, { unique: true });
-
-// Match password
-userSchema.methods.matchPassword = async function (enteredPassword) {
-    return await bcrypt.compare(enteredPassword, this.password);
+User.prototype.matchPassword = async function (enteredPassword) {
+    return bcrypt.compare(enteredPassword, this.password);
 };
 
-// Encrypt password using bcrypt
-userSchema.pre('save', async function () {
-    if (!this.isModified('password')) {
+// CSV imports hash their own passwords in bulk, and bulkCreate skips this hook
+// unless individualHooks is set, so there is no double hashing.
+User.beforeSave(async (user) => {
+    if (!user.changed('password')) {
         return;
     }
     const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
+    user.password = await bcrypt.hash(user.password, salt);
 });
 
-const User = mongoose.model('User', userSchema);
+applyJsonContract(User, { hidden: ['password'] });
+
 module.exports = User;

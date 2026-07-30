@@ -1,31 +1,37 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
+const { idAttributes, applyJsonContract } = require('./jsonContract');
 
-const moduleAllocationSchema = new mongoose.Schema({
-    moduleId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Module',
-        required: true,
+const ModuleAllocation = sequelize.define(
+    'ModuleAllocation',
+    {
+        ...idAttributes,
+        moduleId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
+        levelId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
+        adminId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
     },
-    levelId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'AcademicLevel',
-        required: true,
-    },
-    teacherIds: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-    }],
-    adminId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-}, {
-    timestamps: true,
+    {
+        tableName: 'module_allocations',
+        indexes: [
+            // Ensure a module is allocated to a level only once per admin
+            { unique: true, fields: ['moduleId', 'levelId', 'adminId'] },
+        ],
+    }
+);
+
+// The teachers list was an array of refs on the document; in Postgres it is a
+// join table, serialised back as `teacherIds` for the API.
+applyJsonContract(ModuleAllocation, {
+    populate: { module: 'moduleId', level: 'levelId', teachers: 'teacherIds' },
 });
 
-// Ensure a module is allocated to a level only once per admin
-moduleAllocationSchema.index({ moduleId: 1, levelId: 1, adminId: 1 }, { unique: true });
-
-const ModuleAllocation = mongoose.model('ModuleAllocation', moduleAllocationSchema);
 module.exports = ModuleAllocation;

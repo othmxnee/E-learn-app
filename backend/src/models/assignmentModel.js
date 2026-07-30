@@ -1,37 +1,42 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
+const { idAttributes, applyJsonContract } = require('./jsonContract');
 
-const assignmentSchema = new mongoose.Schema({
-    allocationId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'ModuleAllocation',
-        required: true,
+const Assignment = sequelize.define(
+    'Assignment',
+    {
+        ...idAttributes,
+        allocationId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
+        title: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
+        description: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
+        deadline: {
+            type: DataTypes.DATE,
+            allowNull: false,
+        },
+        createdBy: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
+        adminId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
     },
-    title: {
-        type: String,
-        required: true,
-    },
-    description: {
-        type: String,
-    },
-    deadline: {
-        type: Date,
-        required: true,
-    },
-    createdBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-    adminId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-}, {
-    timestamps: true,
-});
+    {
+        tableName: 'assignments',
+        indexes: [{ fields: ['adminId'] }],
+    }
+);
 
-assignmentSchema.index({ adminId: 1 });
+applyJsonContract(Assignment, { populate: { allocation: 'allocationId' } });
 
-const Assignment = mongoose.model('Assignment', assignmentSchema);
 module.exports = Assignment;

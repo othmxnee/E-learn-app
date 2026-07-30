@@ -1,46 +1,53 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
+const { idAttributes, applyJsonContract } = require('./jsonContract');
 
-const moduleContentSchema = new mongoose.Schema({
-    allocationId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'ModuleAllocation',
-        required: true,
+const ModuleContent = sequelize.define(
+    'ModuleContent',
+    {
+        ...idAttributes,
+        allocationId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
+        type: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: { isIn: [['COURSE', 'TD', 'TP', 'OTHER']] },
+        },
+        title: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
+        fileUrl: {
+            type: DataTypes.STRING,
+            // URL to the file or external link
+            allowNull: true,
+        },
+        link: {
+            type: DataTypes.STRING,
+            // Optional external link if not a file
+            allowNull: true,
+        },
+        description: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
+        createdBy: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
+        adminId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
     },
-    type: {
-        type: String,
-        enum: ['COURSE', 'TD', 'TP', 'OTHER'],
-        required: true,
-    },
-    title: {
-        type: String,
-        required: true,
-    },
-    fileUrl: {
-        type: String,
-        // URL to the file or external link
-    },
-    link: {
-        type: String,
-        // Optional external link if not a file
-    },
-    description: {
-        type: String,
-    },
-    createdBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-    adminId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-}, {
-    timestamps: true,
-});
+    {
+        tableName: 'module_contents',
+        indexes: [{ fields: ['adminId'] }],
+    }
+);
 
-moduleContentSchema.index({ adminId: 1 });
+applyJsonContract(ModuleContent, { populate: { allocation: 'allocationId' } });
 
-const ModuleContent = mongoose.model('ModuleContent', moduleContentSchema);
 module.exports = ModuleContent;

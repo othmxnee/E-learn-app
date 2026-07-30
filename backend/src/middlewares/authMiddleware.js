@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/userModel');
+const { User } = require('../models');
 
 const protect = async (req, res, next) => {
     let token;
@@ -13,10 +13,12 @@ const protect = async (req, res, next) => {
 
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-            req.user = await User.findById(decoded.id).select('-password');
+            req.user = await User.findByPk(decoded.id, {
+                attributes: { exclude: ['password'] },
+            });
 
             if (req.user && req.user.role === 'ADMIN' && !req.user.adminId) {
-                req.user.adminId = req.user._id;
+                req.user.adminId = req.user.id;
             }
 
             next();

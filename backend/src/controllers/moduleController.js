@@ -1,8 +1,26 @@
-const Module = require('../models/moduleModel');
-const ModuleAllocation = require('../models/moduleAllocationModel');
-const Class = require('../models/classModel');
-const User = require('../models/userModel');
-const AcademicLevel = require('../models/academicLevelModel');
+const { Op } = require('sequelize');
+const {
+    Module,
+    ModuleAllocation,
+    Class,
+    User,
+    AcademicLevel,
+    teacherInclude,
+    isTeacherOf,
+} = require('../models');
+const { isUuid, uuidList } = require('../utils/uuid');
+
+const moduleInclude = (attributes = ['id', 'name', 'description']) => ({
+    model: Module,
+    as: 'module',
+    attributes,
+});
+
+const levelInclude = (attributes = ['id', 'name']) => ({
+    model: AcademicLevel,
+    as: 'level',
+    attributes,
+});
 
 // @desc    Create a new module definition
 // @route   POST /api/admin/modules
@@ -19,6 +37,11 @@ const createModule = async (req, res) => {
     res.status(201).json(module);
 };
 
+// Allocations are always returned with their teachers loaded so `teacherIds` is
+// present on the response.
+const reloadAllocation = (id) =>
+    ModuleAllocation.findByPk(id, { include: [teacherInclude()] });
+
 // @desc    Allocate a module to a level and assign teachers
 // @route   POST /api/admin/modules/allocate
 // @access  Private/Admin
@@ -26,29 +49,35 @@ const allocateModule = async (req, res) => {
     const { moduleId, levelId, teacherIds } = req.body;
 
     // Validate existence
-    const module = await Module.findOne({ _id: moduleId, adminId: req.user.adminId });
-    const level = await AcademicLevel.findOne({ _id: levelId, adminId: req.user.adminId });
+    const module = isUuid(moduleId)
+        ? await Module.findOne({ where: { id: moduleId, adminId: req.user.adminId } })
+        : null;
+    const level = isUuid(levelId)
+        ? await AcademicLevel.findOne({ where: { id: levelId, adminId: req.user.adminId } })
+        : null;
 
     if (!module || !level) {
         return res.status(404).json({ message: 'Module or Level not found' });
     }
 
     // Check if already allocated
-    const existingAllocation = await ModuleAllocation.findOne({ moduleId, levelId, adminId: req.user.adminId });
+    const existingAllocation = await ModuleAllocation.findOne({
+        where: { moduleId, levelId, adminId: req.user.adminId },
+    });
+
     if (existingAllocation) {
-        existingAllocation.teacherIds = teacherIds;
-        await existingAllocation.save();
-        return res.json(existingAllocation);
+        await existingAllocation.setTeachers(uuidList(teacherIds));
+        return res.json(await reloadAllocation(existingAllocation.id));
     }
 
     const allocation = await ModuleAllocation.create({
         moduleId,
         levelId,
-        teacherIds,
         adminId: req.user.adminId,
     });
+    await allocation.setTeachers(uuidList(teacherIds));
 
-    res.status(201).json(allocation);
+    res.status(201).json(await reloadAllocation(allocation.id));
 };
 
 // @desc    Allocate a module to multiple levels (Bulk)
@@ -58,26 +87,32 @@ const allocateModuleBulk = async (req, res) => {
     const { moduleId, levelIds, teacherIds } = req.body;
 
     // Validate module exists
-    const module = await Module.findOne({ _id: moduleId, adminId: req.user.adminId });
+    const module = isUuid(moduleId)
+        ? await Module.findOne({ where: { id: moduleId, adminId: req.user.adminId } })
+        : null;
     if (!module) {
         return res.status(404).json({ message: 'Module not found' });
     }
 
+    const teachers = uuidList(teacherIds);
     const allocations = [];
-    for (const levelId of levelIds) {
-        const existingAllocation = await ModuleAllocation.findOne({ moduleId, levelId, adminId: req.user.adminId });
+
+    for (const levelId of uuidList(levelIds)) {
+        const existingAllocation = await ModuleAllocation.findOne({
+            where: { moduleId, levelId, adminId: req.user.adminId },
+        });
+
         if (existingAllocation) {
-            existingAllocation.teacherIds = teacherIds;
-            await existingAllocation.save();
-            allocations.push(existingAllocation);
+            await existingAllocation.setTeachers(teachers);
+            allocations.push(await reloadAllocation(existingAllocation.id));
         } else {
             const allocation = await ModuleAllocation.create({
                 moduleId,
                 levelId,
-                teacherIds,
                 adminId: req.user.adminId,
             });
-            allocations.push(allocation);
+            await allocation.setTeachers(teachers);
+            allocations.push(await reloadAllocation(allocation.id));
         }
     }
 
@@ -97,26 +132,45 @@ const getMyModules = async (req, res) => {
         let allocations = [];
 
         if (user.role === 'TEACHER') {
-            // Find allocations where this teacher is assigned
-            allocations = await ModuleAllocation.find({ teacherIds: user._id, adminId: user.adminId })
-                .populate('moduleId', 'name code description')
-                .populate('levelId', 'name');
+            // Find allocations where this teacher is assigned. The membership
+            // filter runs first so the response can still list every teacher.
+            const assigned = await ModuleAllocation.findAll({
+                attributes: ['id'],
+                where: { adminId: user.adminId },
+                include: [
+                    {
+                        model: User,
+                        as: 'teachers',
+                        attributes: [],
+                        through: { attributes: [] },
+                        where: { id: user.id },
+                    },
+                ],
+            });
+
+            allocations = await ModuleAllocation.findAll({
+                where: { id: { [Op.in]: assigned.map((a) => a.id) } },
+                include: [moduleInclude(), levelInclude(), teacherInclude()],
+            });
         } else if (user.role === 'STUDENT') {
             // Find allocations for the student's level
             if (!user.classId) {
                 return res.status(400).json({ message: 'Student is not assigned to a class' });
             }
 
-            const studentClass = await Class.findOne({ _id: user.classId, adminId: user.adminId });
+            const studentClass = await Class.findOne({
+                where: { id: user.classId, adminId: user.adminId },
+            });
             if (!studentClass) {
                 return res.status(404).json({ message: 'Student class not found' });
             }
 
-            allocations = await ModuleAllocation.find({ levelId: studentClass.levelId, adminId: user.adminId })
-                .populate('moduleId', 'name code description')
-                .populate('teacherIds', 'fullName');
+            allocations = await ModuleAllocation.findAll({
+                where: { levelId: studentClass.levelId, adminId: user.adminId },
+                include: [moduleInclude(), levelInclude(), teacherInclude(['id', 'fullName'])],
+            });
         } else if (user.role === 'ADMIN') {
-            const modules = await Module.find({ adminId: user.adminId });
+            const modules = await Module.findAll({ where: { adminId: user.adminId } });
             return res.json(modules);
         }
 
@@ -131,10 +185,16 @@ const getMyModules = async (req, res) => {
 // @route   GET /api/modules/:id
 // @access  Private
 const getModuleDetails = async (req, res) => {
-    const allocation = await ModuleAllocation.findOne({ _id: req.params.id, adminId: req.user.adminId })
-        .populate('moduleId')
-        .populate('levelId')
-        .populate('teacherIds', 'fullName email');
+    const allocation = isUuid(req.params.id)
+        ? await ModuleAllocation.findOne({
+            where: { id: req.params.id, adminId: req.user.adminId },
+            include: [
+                moduleInclude(['id', 'name', 'description']),
+                levelInclude(['id', 'name', 'type', 'hasSpeciality']),
+                teacherInclude(),
+            ],
+        })
+        : null;
 
     if (!allocation) {
         return res.status(404).json({ message: 'Module not found' });
@@ -142,12 +202,14 @@ const getModuleDetails = async (req, res) => {
 
     // Security check
     if (req.user.role === 'STUDENT') {
-        const studentClass = await Class.findOne({ _id: req.user.classId, adminId: req.user.adminId });
-        if (!studentClass || studentClass.levelId.toString() !== allocation.levelId._id.toString()) {
+        const studentClass = req.user.classId
+            ? await Class.findOne({ where: { id: req.user.classId, adminId: req.user.adminId } })
+            : null;
+        if (!studentClass || String(studentClass.levelId) !== String(allocation.levelId)) {
             return res.status(403).json({ message: 'Not authorized' });
         }
     }
-    if (req.user.role === 'TEACHER' && !allocation.teacherIds.some(t => t._id.toString() === req.user._id.toString())) {
+    if (req.user.role === 'TEACHER' && !isTeacherOf(allocation, req.user.id)) {
         return res.status(403).json({ message: 'Not authorized' });
     }
 

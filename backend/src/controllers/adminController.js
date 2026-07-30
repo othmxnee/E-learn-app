@@ -1,7 +1,6 @@
-const User = require('../models/userModel');
-const Class = require('../models/classModel');
-const Module = require('../models/moduleModel');
-const bcrypt = require('bcryptjs');
+const { Op } = require('sequelize');
+const { User, Class, Module } = require('../models');
+const { isUuid, uuidList } = require('../utils/uuid');
 
 // @desc    Create a new user (Teacher or Student)
 // @route   POST /api/admin/users
@@ -15,7 +14,12 @@ const createUser = async (req, res) => {
             return res.status(400).json({ message: 'Full name and role are required' });
         }
 
-        let userData = { fullName, role, classId, adminId: req.user.adminId };
+        let userData = {
+            fullName,
+            role,
+            classId: isUuid(classId) ? classId : null,
+            adminId: req.user.adminId,
+        };
 
         if (role === 'ADMIN') {
             if (!username || !password) {
@@ -38,12 +42,13 @@ const createUser = async (req, res) => {
             userData.password = matricule; // Default password is the matricule
         }
 
-        const userExists = await User.findOne({
-            $or: [
-                { username: userData.username },
-                { matricule: userData.matricule }
-            ]
-        });
+        const identifiers = [];
+        if (userData.username) identifiers.push({ username: userData.username });
+        if (userData.matricule) identifiers.push({ matricule: userData.matricule });
+
+        const userExists = identifiers.length
+            ? await User.findOne({ where: { [Op.or]: identifiers } })
+            : null;
 
         if (userExists) {
             return res.status(400).json({ message: 'User already exists' });
@@ -52,7 +57,7 @@ const createUser = async (req, res) => {
         const user = await User.create(userData);
 
         res.status(201).json({
-            _id: user._id,
+            _id: user.id,
             fullName: user.fullName,
             username: user.username,
             role: user.role,
@@ -67,7 +72,10 @@ const createUser = async (req, res) => {
 // @route   GET /api/admin/users
 // @access  Private/Admin
 const getUsers = async (req, res) => {
-    const users = await User.find({ adminId: req.user.adminId }).select('-password');
+    const users = await User.findAll({
+        where: { adminId: req.user.adminId },
+        attributes: { exclude: ['password'] },
+    });
     res.json(users);
 };
 
@@ -75,10 +83,12 @@ const getUsers = async (req, res) => {
 // @route   DELETE /api/admin/users/:id
 // @access  Private/Admin
 const deleteUser = async (req, res) => {
-    const user = await User.findOne({ _id: req.params.id, adminId: req.user.adminId });
+    const user = isUuid(req.params.id)
+        ? await User.findOne({ where: { id: req.params.id, adminId: req.user.adminId } })
+        : null;
 
     if (user) {
-        await user.deleteOne();
+        await user.destroy();
         res.json({ message: 'User removed' });
     } else {
         res.status(404).json({ message: 'User not found' });
@@ -112,11 +122,18 @@ const importUsers = async (req, res) => {
 // @access  Private/Admin
 const getStudentsByClass = async (req, res) => {
     try {
-        const students = await User.find({
-            classId: req.params.classId,
-            role: 'STUDENT',
-            adminId: req.user.adminId
-        }).select('-password');
+        if (!isUuid(req.params.classId)) {
+            return res.json([]);
+        }
+
+        const students = await User.findAll({
+            where: {
+                classId: req.params.classId,
+                role: 'STUDENT',
+                adminId: req.user.adminId,
+            },
+            attributes: { exclude: ['password'] },
+        });
 
         res.json(students);
     } catch (error) {
@@ -137,14 +154,20 @@ const assignStudentsToClass = async (req, res) => {
         }
 
         // Update all students with the new classId
-        const result = await User.updateMany(
-            { _id: { $in: studentIds }, role: 'STUDENT', adminId: req.user.adminId },
-            { $set: { classId: classId } }
+        const [modifiedCount] = await User.update(
+            { classId: isUuid(classId) ? classId : null },
+            {
+                where: {
+                    id: { [Op.in]: uuidList(studentIds) },
+                    role: 'STUDENT',
+                    adminId: req.user.adminId,
+                },
+            }
         );
 
         res.json({
-            message: `Successfully assigned ${result.modifiedCount} students to class`,
-            modifiedCount: result.modifiedCount
+            message: `Successfully assigned ${modifiedCount} students to class`,
+            modifiedCount,
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -156,7 +179,9 @@ const assignStudentsToClass = async (req, res) => {
 // @access  Private/Admin
 const removeStudentFromClass = async (req, res) => {
     try {
-        const student = await User.findOne({ _id: req.params.studentId, adminId: req.user.adminId });
+        const student = isUuid(req.params.studentId)
+            ? await User.findOne({ where: { id: req.params.studentId, adminId: req.user.adminId } })
+            : null;
 
         if (!student) {
             return res.status(404).json({ message: 'Student not found' });
@@ -166,7 +191,7 @@ const removeStudentFromClass = async (req, res) => {
             return res.status(400).json({ message: 'User is not a student' });
         }
 
-        student.classId = undefined;
+        student.classId = null;
         await student.save();
 
         res.json({ message: 'Student removed from class' });
@@ -181,7 +206,9 @@ const removeStudentFromClass = async (req, res) => {
 const updateStudentClass = async (req, res) => {
     try {
         const { classId } = req.body;
-        const student = await User.findOne({ _id: req.params.userId, adminId: req.user.adminId });
+        const student = isUuid(req.params.userId)
+            ? await User.findOne({ where: { id: req.params.userId, adminId: req.user.adminId } })
+            : null;
 
         if (!student) {
             return res.status(404).json({ message: 'Student not found' });
@@ -191,13 +218,13 @@ const updateStudentClass = async (req, res) => {
             return res.status(400).json({ message: 'User is not a student' });
         }
 
-        student.classId = classId || undefined;
+        student.classId = isUuid(classId) ? classId : null;
         await student.save();
 
         res.json({
             message: 'Student class updated successfully',
             student: {
-                _id: student._id,
+                _id: student.id,
                 fullName: student.fullName,
                 matricule: student.matricule,
                 classId: student.classId
@@ -213,11 +240,13 @@ const updateStudentClass = async (req, res) => {
 // @access  Private/Admin
 const getStats = async (req, res) => {
     try {
+        const adminId = req.user.adminId;
+
         const [studentCount, teacherCount, classCount, moduleCount] = await Promise.all([
-            User.countDocuments({ role: 'STUDENT', adminId: req.user.adminId }),
-            User.countDocuments({ role: 'TEACHER', adminId: req.user.adminId }),
-            Class.countDocuments({ adminId: req.user.adminId }),
-            Module.countDocuments({ adminId: req.user.adminId }),
+            User.count({ where: { role: 'STUDENT', adminId } }),
+            User.count({ where: { role: 'TEACHER', adminId } }),
+            Class.count({ where: { adminId } }),
+            Module.count({ where: { adminId } }),
         ]);
 
         res.json({

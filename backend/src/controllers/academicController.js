@@ -1,9 +1,7 @@
-const AcademicLevel = require('../models/academicLevelModel');
-const Class = require('../models/classModel');
+const { Op } = require('sequelize');
+const { AcademicLevel, Class, User } = require('../models');
+const { isUuid, uuidList } = require('../utils/uuid');
 
-// @desc    Create a new academic level (e.g., CP1, M2)
-// @route   POST /api/admin/academic-structure/levels
-// @access  Private/Admin
 // @desc    Create a new academic level with classes
 // @route   POST /api/admin/academic-structure/levels
 // @access  Private/Admin
@@ -11,7 +9,7 @@ const createAcademicLevel = async (req, res) => {
     const { name, type, hasSpeciality, classCount, specialities } = req.body;
 
     // 1. Create Level
-    const levelExists = await AcademicLevel.findOne({ name, adminId: req.user.adminId });
+    const levelExists = await AcademicLevel.findOne({ where: { name, adminId: req.user.adminId } });
     if (levelExists) {
         return res.status(400).json({ message: 'Academic level already exists' });
     }
@@ -32,7 +30,7 @@ const createAcademicLevel = async (req, res) => {
             // spec: { name: 'IS', count: 2 }
             for (let i = 1; i <= spec.count; i++) {
                 classesToCreate.push({
-                    levelId: level._id,
+                    levelId: level.id,
                     speciality: spec.name,
                     classNumber: i,
                     name: `${name}-${spec.name}-${i}`,
@@ -44,7 +42,7 @@ const createAcademicLevel = async (req, res) => {
         // Create classes without speciality
         for (let i = 1; i <= classCount; i++) {
             classesToCreate.push({
-                levelId: level._id,
+                levelId: level.id,
                 classNumber: i,
                 name: `${name}-${i}`,
                 adminId: req.user.adminId,
@@ -53,7 +51,7 @@ const createAcademicLevel = async (req, res) => {
     }
 
     if (classesToCreate.length > 0) {
-        await Class.insertMany(classesToCreate);
+        await Class.bulkCreate(classesToCreate);
     }
 
     res.status(201).json({ level, classesCreated: classesToCreate.length });
@@ -63,7 +61,7 @@ const createAcademicLevel = async (req, res) => {
 // @route   GET /api/admin/academic-structure/levels
 // @access  Private/Admin
 const getAcademicLevels = async (req, res) => {
-    const levels = await AcademicLevel.find({ adminId: req.user.adminId });
+    const levels = await AcademicLevel.findAll({ where: { adminId: req.user.adminId } });
     res.json(levels);
 };
 
@@ -73,7 +71,9 @@ const getAcademicLevels = async (req, res) => {
 const createClass = async (req, res) => {
     const { levelId, speciality, classNumber } = req.body;
 
-    const level = await AcademicLevel.findOne({ _id: levelId, adminId: req.user.adminId });
+    const level = isUuid(levelId)
+        ? await AcademicLevel.findOne({ where: { id: levelId, adminId: req.user.adminId } })
+        : null;
     if (!level) {
         return res.status(404).json({ message: 'Academic level not found' });
     }
@@ -89,7 +89,7 @@ const createClass = async (req, res) => {
     }
     name += `-${classNumber}`; // e.g., CS2-IS-1
 
-    const classExists = await Class.findOne({ name, adminId: req.user.adminId });
+    const classExists = await Class.findOne({ where: { name, adminId: req.user.adminId } });
     if (classExists) {
         return res.status(400).json({ message: 'Class already exists' });
     }
@@ -109,21 +109,25 @@ const createClass = async (req, res) => {
 // @route   GET /api/admin/academic-structure/classes
 // @access  Private/Admin
 const getClasses = async (req, res) => {
-    const User = require('../models/userModel');
-
-    const classes = await Class.find({ adminId: req.user.adminId }).populate('levelId', 'name type').lean();
+    const classes = await Class.findAll({
+        where: { adminId: req.user.adminId },
+        include: [{ model: AcademicLevel, as: 'level', attributes: ['id', 'name', 'type'] }],
+    });
 
     // Add student count to each class
-    for (let cls of classes) {
-        const studentCount = await User.countDocuments({
-            classId: cls._id,
-            role: 'STUDENT',
-            adminId: req.user.adminId
+    const payload = [];
+    for (const cls of classes) {
+        const studentCount = await User.count({
+            where: {
+                classId: cls.id,
+                role: 'STUDENT',
+                adminId: req.user.adminId,
+            },
         });
-        cls.studentCount = studentCount;
+        payload.push({ ...cls.toJSON(), studentCount });
     }
 
-    res.json(classes);
+    res.json(payload);
 };
 
 // @desc    Update academic level
@@ -131,7 +135,9 @@ const getClasses = async (req, res) => {
 // @access  Private/Admin
 const updateAcademicLevel = async (req, res) => {
     const { name, type, hasSpeciality } = req.body;
-    const level = await AcademicLevel.findOne({ _id: req.params.id, adminId: req.user.adminId });
+    const level = isUuid(req.params.id)
+        ? await AcademicLevel.findOne({ where: { id: req.params.id, adminId: req.user.adminId } })
+        : null;
 
     if (level) {
         level.name = name || level.name;
@@ -149,12 +155,14 @@ const updateAcademicLevel = async (req, res) => {
 // @route   DELETE /api/admin/academic-structure/levels/:id
 // @access  Private/Admin
 const deleteAcademicLevel = async (req, res) => {
-    const level = await AcademicLevel.findOne({ _id: req.params.id, adminId: req.user.adminId });
+    const level = isUuid(req.params.id)
+        ? await AcademicLevel.findOne({ where: { id: req.params.id, adminId: req.user.adminId } })
+        : null;
 
     if (level) {
         // Delete associated classes
-        await Class.deleteMany({ levelId: level._id, adminId: req.user.adminId });
-        await level.deleteOne();
+        await Class.destroy({ where: { levelId: level.id, adminId: req.user.adminId } });
+        await level.destroy();
         res.json({ message: 'Level and associated classes removed' });
     } else {
         res.status(404).json({ message: 'Level not found' });
@@ -168,15 +176,23 @@ const assignStudentsToClass = async (req, res) => {
     const { studentIds } = req.body;
     const classId = req.params.id;
 
-    const classObj = await Class.findOne({ _id: classId, adminId: req.user.adminId });
+    const classObj = isUuid(classId)
+        ? await Class.findOne({ where: { id: classId, adminId: req.user.adminId } })
+        : null;
     if (!classObj) {
         return res.status(404).json({ message: 'Class not found' });
     }
 
     // Update users
-    await User.updateMany(
-        { _id: { $in: studentIds }, role: 'STUDENT', adminId: req.user.adminId },
-        { $set: { classId: classId } }
+    await User.update(
+        { classId },
+        {
+            where: {
+                id: { [Op.in]: uuidList(studentIds) },
+                role: 'STUDENT',
+                adminId: req.user.adminId,
+            },
+        }
     );
 
     res.json({ message: 'Students assigned successfully' });

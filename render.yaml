@@ -14,10 +14,13 @@ services:
         value: "22"
       - key: NODE_ENV
         value: production
-      # MongoDB Atlas connection string. Render has no managed MongoDB, so this
-      # one is filled in by hand when the blueprint is created.
-      - key: MONGO_URI
+      # Postgres connection string. The instance lives outside this blueprint,
+      # so the value is filled in by hand when the blueprint is created.
+      - key: DATABASE_URL
         sync: false
+      # Tables are namespaced so the database can be shared with another app.
+      - key: DB_SCHEMA
+        value: elearn
       - key: JWT_SECRET
         generateValue: true
       - key: CLIENT_URL

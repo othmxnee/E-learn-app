@@ -1,7 +1,19 @@
-const ModuleContent = require('../models/moduleContentModel');
-const Assignment = require('../models/assignmentModel');
-const Submission = require('../models/submissionModel');
-const ModuleAllocation = require('../models/moduleAllocationModel');
+const {
+    ModuleContent,
+    Assignment,
+    Submission,
+    ModuleAllocation,
+    User,
+    teacherInclude,
+    isTeacherOf,
+} = require('../models');
+const { isUuid, uuidList } = require('../utils/uuid');
+
+// Teachers have to be loaded for the authorisation checks below.
+const findAllocation = (id, adminId) =>
+    isUuid(id)
+        ? ModuleAllocation.findOne({ where: { id, adminId }, include: [teacherInclude()] })
+        : null;
 
 // @desc    Add content to a module
 // @route   POST /api/modules/:allocationId/content
@@ -10,13 +22,13 @@ const addContent = async (req, res) => {
     const { type, title, fileUrl, link, description } = req.body;
     const allocationId = req.params.allocationId;
 
-    const allocation = await ModuleAllocation.findOne({ _id: allocationId, adminId: req.user.adminId });
+    const allocation = await findAllocation(allocationId, req.user.adminId);
     if (!allocation) {
         return res.status(404).json({ message: 'Module allocation not found' });
     }
 
     // Verify teacher
-    if (!allocation.teacherIds.some(id => id.toString() === req.user._id.toString())) {
+    if (!isTeacherOf(allocation, req.user.id)) {
         return res.status(403).json({ message: 'Not authorized to add content to this module' });
     }
 
@@ -27,7 +39,7 @@ const addContent = async (req, res) => {
         fileUrl,
         link,
         description,
-        createdBy: req.user._id,
+        createdBy: req.user.id,
         adminId: req.user.adminId,
     });
 
@@ -40,10 +52,14 @@ const addContent = async (req, res) => {
 const getContent = async (req, res) => {
     const allocationId = req.params.allocationId;
 
-    // Security check (simplified, ideally check if student belongs to class or teacher belongs to module)
-    // Assuming the route protection handles basic auth, but strictly we should check relation.
+    if (!isUuid(allocationId)) {
+        return res.json([]);
+    }
 
-    const content = await ModuleContent.find({ allocationId, adminId: req.user.adminId }).sort({ createdAt: -1 });
+    const content = await ModuleContent.findAll({
+        where: { allocationId, adminId: req.user.adminId },
+        order: [['createdAt', 'DESC']],
+    });
     res.json(content);
 };
 
@@ -54,12 +70,12 @@ const createAssignment = async (req, res) => {
     const { title, description, deadline } = req.body;
     const allocationId = req.params.allocationId;
 
-    const allocation = await ModuleAllocation.findOne({ _id: allocationId, adminId: req.user.adminId });
+    const allocation = await findAllocation(allocationId, req.user.adminId);
     if (!allocation) {
         return res.status(404).json({ message: 'Module allocation not found' });
     }
 
-    if (!allocation.teacherIds.some(id => id.toString() === req.user._id.toString())) {
+    if (!isTeacherOf(allocation, req.user.id)) {
         return res.status(403).json({ message: 'Not authorized' });
     }
 
@@ -68,7 +84,7 @@ const createAssignment = async (req, res) => {
         title,
         description,
         deadline,
-        createdBy: req.user._id,
+        createdBy: req.user.id,
         adminId: req.user.adminId,
     });
 
@@ -80,21 +96,33 @@ const createAssignment = async (req, res) => {
 // @access  Private
 const getAssignments = async (req, res) => {
     const allocationId = req.params.allocationId;
-    const assignments = await Assignment.find({ allocationId, adminId: req.user.adminId }).sort({ deadline: 1 }).lean();
+
+    if (!isUuid(allocationId)) {
+        return res.json([]);
+    }
+
+    const assignments = await Assignment.findAll({
+        where: { allocationId, adminId: req.user.adminId },
+        order: [['deadline', 'ASC']],
+    });
+
+    const payload = assignments.map((assignment) => assignment.toJSON());
 
     // If student, attach their submission
     if (req.user.role === 'STUDENT') {
-        for (let assign of assignments) {
+        for (const assign of payload) {
             const submission = await Submission.findOne({
-                assignmentId: assign._id,
-                studentId: req.user._id,
-                adminId: req.user.adminId,
+                where: {
+                    assignmentId: assign._id,
+                    studentId: req.user.id,
+                    adminId: req.user.adminId,
+                },
             });
             assign.mySubmission = submission;
         }
     }
 
-    res.json(assignments);
+    res.json(payload);
 };
 
 // @desc    Submit assignment
@@ -104,7 +132,9 @@ const submitAssignment = async (req, res) => {
     const { fileUrl } = req.body;
     const assignmentId = req.params.assignmentId;
 
-    const assignment = await Assignment.findOne({ _id: assignmentId, adminId: req.user.adminId });
+    const assignment = isUuid(assignmentId)
+        ? await Assignment.findOne({ where: { id: assignmentId, adminId: req.user.adminId } })
+        : null;
     if (!assignment) {
         return res.status(404).json({ message: 'Assignment not found' });
     }
@@ -115,9 +145,11 @@ const submitAssignment = async (req, res) => {
 
     // Check existing submission
     const existingSubmission = await Submission.findOne({
-        assignmentId,
-        studentId: req.user._id,
-        adminId: req.user.adminId,
+        where: {
+            assignmentId,
+            studentId: req.user.id,
+            adminId: req.user.adminId,
+        },
     });
 
     if (existingSubmission) {
@@ -131,7 +163,7 @@ const submitAssignment = async (req, res) => {
 
     const submission = await Submission.create({
         assignmentId,
-        studentId: req.user._id,
+        studentId: req.user.id,
         fileUrl,
         status,
         submittedAt: now,
@@ -147,19 +179,33 @@ const submitAssignment = async (req, res) => {
 const getSubmissions = async (req, res) => {
     const assignmentId = req.params.assignmentId;
 
-    const assignment = await Assignment.findOne({ _id: assignmentId, adminId: req.user.adminId }).populate('allocationId');
+    const assignment = isUuid(assignmentId)
+        ? await Assignment.findOne({
+            where: { id: assignmentId, adminId: req.user.adminId },
+            include: [
+                {
+                    model: ModuleAllocation,
+                    as: 'allocation',
+                    include: [teacherInclude(['id'])],
+                },
+            ],
+        })
+        : null;
+
     if (!assignment) {
         return res.status(404).json({ message: 'Assignment not found' });
     }
 
     // Verify teacher
-    if (!assignment.allocationId.teacherIds.some(id => id.toString() === req.user._id.toString())) {
+    if (!assignment.allocation || !isTeacherOf(assignment.allocation, req.user.id)) {
         return res.status(403).json({ message: 'Not authorized' });
     }
 
-    const submissions = await Submission.find({ assignmentId, adminId: req.user.adminId })
-        .populate('studentId', 'fullName matricule')
-        .sort({ submittedAt: -1 });
+    const submissions = await Submission.findAll({
+        where: { assignmentId, adminId: req.user.adminId },
+        include: [{ model: User, as: 'student', attributes: ['id', 'fullName', 'matricule'] }],
+        order: [['submittedAt', 'DESC']],
+    });
 
     res.json(submissions);
 };
@@ -175,7 +221,7 @@ const bulkAddContent = async (req, res) => {
     }
 
     const contents = [];
-    for (const allocationId of allocationIds) {
+    for (const allocationId of uuidList(allocationIds)) {
         const content = await ModuleContent.create({
             allocationId,
             type,
@@ -183,7 +229,7 @@ const bulkAddContent = async (req, res) => {
             fileUrl,
             link,
             description,
-            createdBy: req.user._id,
+            createdBy: req.user.id,
             adminId: req.user.adminId,
         });
         contents.push(content);
@@ -203,13 +249,13 @@ const bulkCreateAssignment = async (req, res) => {
     }
 
     const assignments = [];
-    for (const allocationId of allocationIds) {
+    for (const allocationId of uuidList(allocationIds)) {
         const assignment = await Assignment.create({
             allocationId,
             title,
             description,
             deadline,
-            createdBy: req.user._id,
+            createdBy: req.user.id,
             adminId: req.user.adminId,
         });
         assignments.push(assignment);

@@ -1,28 +1,64 @@
-const mongoose = require('mongoose');
+const { Sequelize } = require('sequelize');
+
+// The database is shared with another project, so every table lives in its own
+// schema instead of public.
+const DB_SCHEMA = process.env.DB_SCHEMA || 'elearn';
+
+const buildConnection = () => {
+    const url = process.env.DATABASE_URL;
+
+    if (!url) {
+        // Keep the instance constructible so requiring a model never throws;
+        // connectDB reports the missing variable properly.
+        return new Sequelize('postgres://localhost:5432/postgres', { logging: false });
+    }
+
+    // Render publishes the database on a fully qualified host externally, where
+    // SSL is required, and on a bare host inside its private network where it
+    // is not offered at all.
+    let needsSsl = true;
+    try {
+        needsSsl = new URL(url).hostname.includes('.');
+    } catch (e) {
+        needsSsl = true;
+    }
+
+    return new Sequelize(url, {
+        dialect: 'postgres',
+        logging: false,
+        define: { schema: DB_SCHEMA },
+        dialectOptions: needsSsl
+            ? { ssl: { require: true, rejectUnauthorized: false } }
+            : {},
+        pool: { max: 5, min: 0, acquire: 30000, idle: 10000 },
+    });
+};
+
+const sequelize = buildConnection();
 
 const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      family: 4, // Use IPv4, skip trying IPv6
-    });
+    try {
+        if (!process.env.DATABASE_URL) {
+            throw new Error('DATABASE_URL is not set');
+        }
 
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+        await sequelize.authenticate();
 
-    // Connection event listeners
-    mongoose.connection.on('error', (err) => {
-      console.error('MongoDB connection error:', err);
-    });
+        await sequelize.createSchema(DB_SCHEMA, { logging: false }).catch(() => {
+            // Already exists, which is the normal case after the first boot.
+        });
 
-    mongoose.connection.on('disconnected', () => {
-      console.log('MongoDB disconnected');
-    });
+        // Associations have to be registered before the tables are created.
+        require('../models');
+        await sequelize.sync();
 
-  } catch (error) {
-    console.error(`MongoDB Connection Error: ${error.message}`);
-    process.exit(1);
-  }
+        console.log(`Postgres connected: ${sequelize.getDatabaseName()} (schema ${DB_SCHEMA})`);
+    } catch (error) {
+        console.error(`Database Connection Error: ${error.message}`);
+        process.exit(1);
+    }
 };
 
 module.exports = connectDB;
+module.exports.sequelize = sequelize;
+module.exports.DB_SCHEMA = DB_SCHEMA;

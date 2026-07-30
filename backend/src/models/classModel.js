@@ -1,33 +1,40 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
+const { idAttributes, applyJsonContract } = require('./jsonContract');
 
-const classSchema = new mongoose.Schema({
-    levelId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'AcademicLevel',
-        required: true,
+const Class = sequelize.define(
+    'Class',
+    {
+        ...idAttributes,
+        levelId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
+        speciality: {
+            type: DataTypes.STRING,
+            // Optional, e.g., "IS", "IV". Required if level.hasSpeciality is true
+            allowNull: true,
+        },
+        classNumber: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+        },
+        name: {
+            type: DataTypes.STRING,
+            // Auto-generated or manually set, e.g., "CS2-IS-1"
+            allowNull: true,
+        },
+        adminId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
     },
-    speciality: {
-        type: String,
-        // Optional, e.g., "IS", "IV". Required if level.hasSpeciality is true
-    },
-    classNumber: {
-        type: Number,
-        required: true,
-    },
-    name: {
-        type: String,
-        // Auto-generated or manually set, e.g., "CS2-IS-1"
-    },
-    adminId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-}, {
-    timestamps: true,
-});
+    {
+        tableName: 'classes',
+        indexes: [{ fields: ['adminId'] }],
+    }
+);
 
-classSchema.index({ adminId: 1 });
+applyJsonContract(Class, { populate: { level: 'levelId' } });
 
-const Class = mongoose.model('Class', classSchema);
 module.exports = Class;

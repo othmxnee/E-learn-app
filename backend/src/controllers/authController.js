@@ -1,4 +1,5 @@
-const User = require('../models/userModel');
+const { Op } = require('sequelize');
+const { User } = require('../models');
 const generateToken = require('../utils/generateToken');
 
 // @desc    Auth user & get token
@@ -8,7 +9,7 @@ const loginUser = async (req, res) => {
     const { username, password } = req.body;
 
     // Find all users with this username (could be multiple across different admins)
-    const users = await User.find({ username });
+    const users = await User.findAll({ where: { username } });
 
     let authenticatedUser = null;
 
@@ -21,12 +22,12 @@ const loginUser = async (req, res) => {
 
     if (authenticatedUser) {
         res.json({
-            _id: authenticatedUser._id,
+            _id: authenticatedUser.id,
             username: authenticatedUser.username,
             fullName: authenticatedUser.fullName,
             role: authenticatedUser.role,
             firstLogin: authenticatedUser.firstLogin,
-            token: generateToken(authenticatedUser._id),
+            token: generateToken(authenticatedUser.id),
         });
     } else {
         res.status(401).json({ message: 'Invalid username or password' });
@@ -38,7 +39,7 @@ const loginUser = async (req, res) => {
 // @access  Private
 const changePassword = async (req, res) => {
     const { oldPassword, newPassword } = req.body;
-    const user = await User.findById(req.user._id);
+    const user = await User.findByPk(req.user.id);
 
     if (user) {
         // If it's NOT first login, verify old password
@@ -62,11 +63,11 @@ const changePassword = async (req, res) => {
 // @route   GET /api/auth/me
 // @access  Private
 const getMe = async (req, res) => {
-    const user = await User.findById(req.user._id);
+    const user = await User.findByPk(req.user.id);
 
     if (user) {
         res.json({
-            _id: user._id,
+            _id: user.id,
             username: user.username,
             fullName: user.fullName,
             role: user.role,
@@ -84,7 +85,13 @@ const registerAdmin = async (req, res) => {
     try {
         const { fullName, username, password, matricule } = req.body;
 
-        const userExists = await User.findOne({ $or: [{ username }, { matricule }] });
+        const identifiers = [];
+        if (username) identifiers.push({ username });
+        if (matricule) identifiers.push({ matricule });
+
+        const userExists = identifiers.length
+            ? await User.findOne({ where: { [Op.or]: identifiers } })
+            : null;
 
         if (userExists) {
             return res.status(400).json({ message: 'User already exists with this username or matricule' });
@@ -96,18 +103,18 @@ const registerAdmin = async (req, res) => {
             password,
             matricule,
             role: 'ADMIN',
-            firstLogin: false
+            firstLogin: false,
         });
 
         if (user) {
-            user.adminId = user._id;
+            user.adminId = user.id;
             await user.save();
             res.status(201).json({
-                _id: user._id,
+                _id: user.id,
                 username: user.username,
                 fullName: user.fullName,
                 role: user.role,
-                token: generateToken(user._id),
+                token: generateToken(user.id),
             });
         } else {
             res.status(400).json({ message: 'Invalid user data' });
