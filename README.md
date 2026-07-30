@@ -76,3 +76,31 @@ JWT Authentication
 Live demo:
 https://elearn-27007.netlify.app/
 
+Deploy on Render
+
+The repository ships a Blueprint (render.yaml) that creates two services:
+
+elearn-api — the Express API (rootDir backend)
+elearn-web — the Vite build served as a static site (rootDir frontend)
+
+Steps
+
+1. Create a MongoDB Atlas cluster and allow access from anywhere (0.0.0.0/0),
+   since Render's free instances do not have static outbound IPs.
+2. In Render, go to New > Blueprint and pick this repository.
+3. When prompted, paste the Atlas connection string as MONGO_URI.
+   JWT_SECRET is generated automatically, and the two services discover each
+   other's URLs (CLIENT_URL and VITE_API_URL) without any manual input.
+4. After the first deploy, create the first administrator by calling
+   POST /api/auth/register-admin, or through the register page of the frontend.
+
+Notes
+
+Free instances sleep after 15 minutes without traffic, so the first request
+after an idle period takes about a minute while the service wakes up.
+
+Uploaded course material and submissions are stored on the local filesystem
+(backend/uploads), which Render resets on every deploy and restart. To keep
+them, uncomment the disk block in render.yaml — this requires a paid instance
+type — or move the uploads to an object storage such as S3 or Cloudinary.
+

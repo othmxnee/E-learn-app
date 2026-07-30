@@ -21,8 +21,16 @@ if (!fs.existsSync(uploadsDir)) {
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+// CLIENT_URL accepts a comma-separated list of origins. Render injects a bare
+// hostname for the static site, so origins without a scheme are assumed https.
+const allowedOrigins = (process.env.CLIENT_URL || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+    .map((origin) => (/^https?:\/\//.test(origin) ? origin : `https://${origin}`));
+
 app.use(cors({
-    origin: process.env.CLIENT_URL || '*',
+    origin: allowedOrigins.length ? allowedOrigins : '*',
     credentials: true
 }));
 app.use(helmet({
