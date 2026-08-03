@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../../services/api';
-import { FileText, Download, Upload, Clock, Plus, X, Users, CheckCircle } from 'lucide-react';
+import { FileText, Download, Upload, Clock, Plus, X, Users, CheckCircle, Award } from 'lucide-react';
 import { FILE_BASE_URL } from '../../config';
 import toast from 'react-hot-toast';
 
@@ -129,6 +129,51 @@ const ModuleDetails = () => {
         } catch (error) {
             console.error('Error fetching submissions:', error);
             toast.error('Error fetching submissions', { id: loadingToast });
+        }
+    };
+
+    // Grading happens inline in the submissions table: one row is open for
+    // editing at a time, keyed by submission id.
+    const [gradingId, setGradingId] = useState(null);
+    const [gradeDraft, setGradeDraft] = useState({ grade: '', feedback: '' });
+    const [savingGrade, setSavingGrade] = useState(false);
+
+    const openGradeEditor = (submission) => {
+        setGradingId(submission._id);
+        setGradeDraft({
+            grade: submission.grade ?? '',
+            feedback: submission.feedback ?? '',
+        });
+    };
+
+    const saveGrade = async (submission) => {
+        const raw = String(gradeDraft.grade).trim();
+        const parsed = Number(raw);
+
+        if (raw !== '' && (!Number.isFinite(parsed) || parsed < 0 || parsed > 20)) {
+            toast.error('Grade must be between 0 and 20');
+            return;
+        }
+
+        setSavingGrade(true);
+        const loadingToast = toast.loading('Saving grade...');
+        try {
+            const { data } = await api.put(`/submissions/${submission._id}/grade`, {
+                grade: raw === '' ? null : parsed,
+                feedback: gradeDraft.feedback,
+            });
+
+            // Patch the row in place so the table does not have to be refetched.
+            setSubmissions((current) =>
+                current.map((row) => (row._id === data._id ? { ...row, ...data } : row))
+            );
+            setGradingId(null);
+            toast.success(raw === '' ? 'Grade cleared' : 'Grade saved', { id: loadingToast });
+        } catch (error) {
+            const message = error.response?.data?.message || 'Error saving grade';
+            toast.error(message, { id: loadingToast });
+        } finally {
+            setSavingGrade(false);
         }
     };
 
@@ -281,6 +326,22 @@ const ModuleDetails = () => {
                                                     <p className="text-[11px] text-gray-400 mt-3 font-medium">
                                                         {new Date(assign.mySubmission.submittedAt).toLocaleString()}
                                                     </p>
+
+                                                    {assign.mySubmission.grade !== null && assign.mySubmission.grade !== undefined && (
+                                                        <div className="mt-4 pt-4 border-t border-gray-200">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Grade</p>
+                                                            <p className="text-3xl font-bold text-gray-900 mt-1">
+                                                                {assign.mySubmission.grade}
+                                                                <span className="text-base text-gray-400 font-medium">/20</span>
+                                                            </p>
+                                                            {assign.mySubmission.feedback && (
+                                                                <p className="text-xs text-gray-500 mt-2 md:text-right max-w-[220px]">
+                                                                    “{assign.mySubmission.feedback}”
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
+
                                                     <a
                                                         href={`${FILE_BASE_URL}${assign.mySubmission.fileUrl}`}
                                                         target="_blank"
@@ -338,36 +399,101 @@ const ModuleDetails = () => {
                                         <th className="pb-4">Matricule</th>
                                         <th className="pb-4">Date</th>
                                         <th className="pb-4">Status</th>
+                                        <th className="pb-4">Grade</th>
                                         <th className="pb-4 text-right">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {submissions.map((sub) => (
-                                        <tr key={sub._id} className="group hover:bg-gray-50 transition-colors">
-                                            <td className="py-4 font-bold text-gray-900">{sub.studentId.fullName}</td>
-                                            <td className="py-4 text-gray-500 font-medium">{sub.studentId.matricule}</td>
-                                            <td className="py-4 text-gray-500 text-sm">{new Date(sub.submittedAt).toLocaleString()}</td>
-                                            <td className="py-4">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${sub.status === 'LATE' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                                                    }`}>
-                                                    {sub.status}
-                                                </span>
-                                            </td>
-                                            <td className="py-4 text-right">
-                                                <a
-                                                    href={`${FILE_BASE_URL}${sub.fileUrl}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex items-center gap-2 text-primary font-bold hover:underline"
-                                                >
-                                                    <Download className="w-4 h-4" /> Download
-                                                </a>
-                                            </td>
-                                        </tr>
+                                        <React.Fragment key={sub._id}>
+                                            <tr className="group hover:bg-gray-50 transition-colors">
+                                                <td className="py-4 font-bold text-gray-900">{sub.studentId.fullName}</td>
+                                                <td className="py-4 text-gray-500 font-medium">{sub.studentId.matricule}</td>
+                                                <td className="py-4 text-gray-500 text-sm">{new Date(sub.submittedAt).toLocaleString()}</td>
+                                                <td className="py-4">
+                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${sub.status === 'LATE' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                                                        }`}>
+                                                        {sub.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4">
+                                                    {sub.grade === null || sub.grade === undefined ? (
+                                                        <span className="text-gray-400 text-sm italic">Not graded</span>
+                                                    ) : (
+                                                        <span className="font-bold text-gray-900">{sub.grade}<span className="text-gray-400 font-medium">/20</span></span>
+                                                    )}
+                                                </td>
+                                                <td className="py-4 text-right whitespace-nowrap">
+                                                    <button
+                                                        onClick={() => (gradingId === sub._id ? setGradingId(null) : openGradeEditor(sub))}
+                                                        className="inline-flex items-center gap-1.5 text-gray-600 font-bold hover:text-primary mr-4"
+                                                    >
+                                                        <Award className="w-4 h-4" />
+                                                        {sub.grade === null || sub.grade === undefined ? 'Grade' : 'Edit'}
+                                                    </button>
+                                                    <a
+                                                        href={`${FILE_BASE_URL}${sub.fileUrl}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-2 text-primary font-bold hover:underline"
+                                                    >
+                                                        <Download className="w-4 h-4" /> Download
+                                                    </a>
+                                                </td>
+                                            </tr>
+
+                                            {gradingId === sub._id && (
+                                                <tr className="bg-gray-50">
+                                                    <td colSpan="6" className="py-4 px-2">
+                                                        <div className="flex flex-wrap items-end gap-3">
+                                                            <label className="flex flex-col">
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Grade / 20</span>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="20"
+                                                                    step="0.25"
+                                                                    value={gradeDraft.grade}
+                                                                    onChange={(e) => setGradeDraft((d) => ({ ...d, grade: e.target.value }))}
+                                                                    placeholder="—"
+                                                                    className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                                                                />
+                                                            </label>
+                                                            <label className="flex flex-col flex-1 min-w-[200px]">
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Feedback</span>
+                                                                <input
+                                                                    type="text"
+                                                                    value={gradeDraft.feedback}
+                                                                    onChange={(e) => setGradeDraft((d) => ({ ...d, feedback: e.target.value }))}
+                                                                    placeholder="Optional comment for the student"
+                                                                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                                                                />
+                                                            </label>
+                                                            <button
+                                                                onClick={() => saveGrade(sub)}
+                                                                disabled={savingGrade}
+                                                                className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold hover:opacity-90 disabled:opacity-50"
+                                                            >
+                                                                Save
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setGradingId(null)}
+                                                                className="px-4 py-2 rounded-lg text-sm font-bold text-gray-600 border border-gray-200 hover:bg-white"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                        <p className="text-xs text-gray-400 mt-2">
+                                                            Leave the grade empty and save to remove an existing mark.
+                                                        </p>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     ))}
                                     {submissions.length === 0 && (
                                         <tr>
-                                            <td colSpan="5" className="py-12 text-center text-gray-400 font-medium italic">
+                                            <td colSpan="6" className="py-12 text-center text-gray-400 font-medium italic">
                                                 No submissions yet.
                                             </td>
                                         </tr>

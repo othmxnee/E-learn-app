@@ -20,6 +20,16 @@ const idAttributes = {
     },
 };
 
+// Every row the demo seeder writes carries this flag, so `seed:reset` can drop
+// the demo dataset without touching anything a real user created.
+const seededAttribute = {
+    seeded: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+    },
+};
+
 // `populate` maps an association alias onto the foreign key it should be
 // serialised as, mirroring what .populate() used to produce.
 const applyJsonContract = (model, { populate = {}, hidden = [] } = {}) => {
@@ -55,4 +65,4 @@ const applyJsonContract = (model, { populate = {}, hidden = [] } = {}) => {
     };
 };
 
-module.exports = { idAttributes, applyJsonContract };
+module.exports = { idAttributes, seededAttribute, applyJsonContract };

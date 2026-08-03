@@ -58,6 +58,11 @@ app.use('/api/upload', require('./routes/uploadRoutes'));
 // Make uploads folder static
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// Demo course notes referenced by the seeded materials. These live in the
+// repository rather than in uploads/, which Render wipes on every deploy, so
+// the demo keeps working after a restart.
+app.use('/seed-data', express.static(path.join(__dirname, '../seed-data')));
+
 app.get('/', (req, res) => {
     res.send('API is running...');
 });

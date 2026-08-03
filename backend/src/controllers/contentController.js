@@ -210,6 +210,55 @@ const getSubmissions = async (req, res) => {
     res.json(submissions);
 };
 
+// @desc    Grade a submission
+// @route   PUT /api/submissions/:submissionId/grade
+// @access  Private/Teacher
+const gradeSubmission = async (req, res) => {
+    const { grade, feedback } = req.body;
+    const { submissionId } = req.params;
+
+    // A submission can be un-graded by sending null, so the absence of a grade
+    // is only rejected when the key was left out entirely.
+    const clearing = grade === null || grade === '';
+    const parsed = clearing ? null : Number(grade);
+
+    if (!clearing && (!Number.isFinite(parsed) || parsed < 0 || parsed > 20)) {
+        return res.status(400).json({ message: 'Grade must be a number between 0 and 20' });
+    }
+
+    const submission = isUuid(submissionId)
+        ? await Submission.findOne({ where: { id: submissionId, adminId: req.user.adminId } })
+        : null;
+
+    if (!submission) {
+        return res.status(404).json({ message: 'Submission not found' });
+    }
+
+    // Only a teacher of the module the assignment belongs to may grade it.
+    const assignment = await Assignment.findOne({
+        where: { id: submission.assignmentId, adminId: req.user.adminId },
+        include: [
+            {
+                model: ModuleAllocation,
+                as: 'allocation',
+                include: [teacherInclude(['id'])],
+            },
+        ],
+    });
+
+    if (!assignment || !assignment.allocation || !isTeacherOf(assignment.allocation, req.user.id)) {
+        return res.status(403).json({ message: 'Not authorized to grade this submission' });
+    }
+
+    submission.grade = parsed;
+    submission.feedback = clearing ? null : feedback ?? submission.feedback;
+    submission.gradedAt = clearing ? null : new Date();
+    submission.gradedBy = clearing ? null : req.user.id;
+    await submission.save();
+
+    res.json(submission);
+};
+
 // @desc    Add content to multiple allocations
 // @route   POST /api/modules/bulk/content
 // @access  Private/Teacher
@@ -271,6 +320,7 @@ module.exports = {
     getAssignments,
     submitAssignment,
     getSubmissions,
+    gradeSubmission,
     bulkAddContent,
     bulkCreateAssignment,
 };

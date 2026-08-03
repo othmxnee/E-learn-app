@@ -1,11 +1,12 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/db');
-const { idAttributes, applyJsonContract } = require('./jsonContract');
+const { idAttributes, seededAttribute, applyJsonContract } = require('./jsonContract');
 
 const ModuleContent = sequelize.define(
     'ModuleContent',
     {
         ...idAttributes,
+        ...seededAttribute,
         allocationId: {
             type: DataTypes.UUID,
             allowNull: false,

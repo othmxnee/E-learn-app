@@ -7,6 +7,7 @@ const {
     getAssignments,
     submitAssignment,
     getSubmissions,
+    gradeSubmission,
     bulkAddContent,
     bulkCreateAssignment,
 } = require('../controllers/contentController');
@@ -34,5 +35,8 @@ router.route('/assignments/:assignmentId/submit')
 
 router.route('/assignments/:assignmentId/submissions')
     .get(authorize('TEACHER'), getSubmissions);
+
+router.route('/submissions/:submissionId/grade')
+    .put(authorize('TEACHER'), gradeSubmission);
 
 module.exports = router;

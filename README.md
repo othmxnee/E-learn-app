@@ -53,6 +53,42 @@ full_name,matricule,year,speciality,class
 Ahmed Benali,2023001,CP1,,2
 Sara Kacem,2023002,CS2,IS,1
 
+Demo data
+
+The platform can populate itself with a realistic dataset so the dashboards,
+charts, filters and pagination are exercised with full tables rather than a
+handful of rows.
+
+  npm run seed:demo    build the dataset (clears a previous demo first)
+  npm run seed:reset   remove it again
+
+Both are also available to an administrator from the dashboard, as "Load demo
+data" and "Reset demo data". Seeding runs as a background job with a progress
+bar, because the work takes longer than a request should stay open.
+
+What it creates: 4 departments across 12 programmes, 24 classes, 60 modules,
+40 teachers, 600 students, 300 assignments, ~180 course materials and ~4,000
+submissions with grades on the work whose deadline has passed. Grades follow a
+normal distribution around 13/20, class sizes vary between 20 and 30, roughly
+10% of students never signed in and 5% of past assignments received nothing —
+the dataset is deliberately uneven, because real data is.
+
+Two properties the seed guarantees:
+
+- Deterministic. The same DEMO_SEED always produces the same people, grades
+  and timestamps, so screenshots and demos stay reproducible. Set DEMO_SEED to
+  vary it.
+- Safe to re-run. Every seeded row is tagged, so a reset removes the demo
+  dataset and never touches records you created yourself, and re-running the
+  seed replaces the demo rather than duplicating it.
+
+Course materials point at 15 short PDFs committed under backend/seed-data,
+reused across modules. Keeping the real files down to 15 keeps the repository
+small, and they are served from the repository rather than from uploads/,
+which Render wipes on every deploy.
+
+Demo accounts sign in with their matricule and the password demo1234.
+
 Tech Stack
 
 Frontend:

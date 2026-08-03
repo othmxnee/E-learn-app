@@ -1,12 +1,13 @@
 const { DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const { sequelize } = require('../config/db');
-const { idAttributes, applyJsonContract } = require('./jsonContract');
+const { idAttributes, seededAttribute, applyJsonContract } = require('./jsonContract');
 
 const User = sequelize.define(
     'User',
     {
         ...idAttributes,
+        ...seededAttribute,
         username: {
             type: DataTypes.STRING,
             // Null for users who log in with their matricule instead.
