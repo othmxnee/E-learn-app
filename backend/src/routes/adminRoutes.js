@@ -14,7 +14,7 @@ const {
     updateStudentClass,
     getStats,
 } = require('../controllers/adminController');
-const { startSeed, startReset, getStatus } = require('../controllers/demoController');
+const { startSeed, startReset, startReindex, getStatus } = require('../controllers/demoController');
 const {
     getOverview,
     getGradeDistribution,
@@ -40,6 +40,7 @@ router.get('/analytics/classes', getClassBreakdown);
 // then polls /demo/status for progress.
 router.post('/demo/seed', startSeed);
 router.post('/demo/reset', startReset);
+router.post('/demo/reindex', startReindex);
 router.get('/demo/status', getStatus);
 router.route('/users').post(createUser).get(getUsers);
 router.route('/users/import').post(upload.single('file'), importUsers);

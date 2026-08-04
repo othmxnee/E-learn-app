@@ -7,6 +7,7 @@ const ModuleAllocation = require('./moduleAllocationModel');
 const ModuleContent = require('./moduleContentModel');
 const Assignment = require('./assignmentModel');
 const Submission = require('./submissionModel');
+const Chunk = require('./chunkModel');
 
 // Foreign key constraints are deliberately left off. The document store these
 // models replace allowed dangling references, and code such as deleting a level
@@ -43,6 +44,9 @@ Assignment.belongsTo(ModuleAllocation, { as: 'allocation', foreignKey: 'allocati
 Submission.belongsTo(User, { as: 'student', foreignKey: 'studentId', ...link });
 Submission.belongsTo(Assignment, { as: 'assignment', foreignKey: 'assignmentId', ...link });
 
+Chunk.belongsTo(ModuleContent, { as: 'material', foreignKey: 'materialId', ...link });
+Chunk.belongsTo(ModuleAllocation, { as: 'allocation', foreignKey: 'allocationId', ...link });
+
 // Teachers are always eager loaded so `teacherIds` is never missing from a
 // serialised allocation.
 const teacherInclude = (attributes = ['id', 'fullName', 'matricule']) => ({
@@ -60,6 +64,7 @@ const isTeacherOf = (allocation, userId) => {
 
 module.exports = {
     sequelize,
+    Chunk,
     User,
     AcademicLevel,
     Class,

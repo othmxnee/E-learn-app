@@ -23,6 +23,11 @@ services:
         value: elearn
       - key: JWT_SECRET
         generateValue: true
+      # Powers the course assistant: embeddings for the search index and the
+      # chat model itself. Filled in by hand — without it the app runs normally
+      # and the assistant hides itself.
+      - key: GEMINI_API_KEY
+        sync: false
       - key: CLIENT_URL
         fromService:
           type: web

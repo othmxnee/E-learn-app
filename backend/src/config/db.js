@@ -53,6 +53,8 @@ const ADDED_COLUMNS = [
     ['submissions', 'feedback', 'TEXT'],
     ['submissions', 'gradedAt', 'TIMESTAMP WITH TIME ZONE'],
     ['submissions', 'gradedBy', 'UUID'],
+    // `chunks` is created by sync() on first boot, so only later additions to
+    // it need to appear here.
 ];
 
 const applyAddedColumns = async () => {

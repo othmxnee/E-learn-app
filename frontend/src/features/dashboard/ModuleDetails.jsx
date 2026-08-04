@@ -5,6 +5,7 @@ import api from '../../services/api';
 import { FileText, Download, Upload, Clock, Plus, X, Users, CheckCircle, Award } from 'lucide-react';
 import { FILE_BASE_URL } from '../../config';
 import toast from 'react-hot-toast';
+import ChatWidget from '../chat/ChatWidget';
 
 const ModuleDetails = () => {
     const { id } = useParams(); // Allocation ID
@@ -606,6 +607,9 @@ const ModuleDetails = () => {
                     </div>
                 </div>
             )}
+
+            {/* Course assistant, scoped to this module's own materials. */}
+            <ChatWidget allocationId={id} moduleName={module.moduleId?.name} />
         </div>
     );
 };

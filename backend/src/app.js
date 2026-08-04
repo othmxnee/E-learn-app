@@ -54,6 +54,7 @@ app.use('/api/admin/academic-structure', academicRoutes);
 app.use('/api/modules', moduleRoutes);
 app.use('/api', contentRoutes); // Mounts to /api/modules/:allocationId/... and /api/assignments/...
 app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/chat', require('./routes/chatRoutes'));
 
 // Make uploads folder static
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

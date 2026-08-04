@@ -22,6 +22,12 @@ const STEP_WEIGHTS = {
     submissions: 80,
 };
 
+const COMPLETION_MESSAGES = {
+    seed: 'Demo data ready',
+    reset: 'Demo data removed',
+    reindex: 'Chat index rebuilt',
+};
+
 const newJob = (adminId, kind) => {
     const job = {
         id: `${kind}-${Date.now()}`,
@@ -51,6 +57,9 @@ const isRunning = (adminId) => {
 const attachProgress = (job) => ({ step, message }) => {
     const weight = STEP_WEIGHTS[step];
     if (weight !== undefined) job.progress = Math.max(job.progress, weight);
+    // Indexing reports file-by-file rather than by named step, so it advances
+    // the bar gradually instead of snapping to fixed weights.
+    else if (job.kind === 'reindex') job.progress = Math.min(95, job.progress + 4);
     job.message = message;
 };
 
@@ -64,7 +73,7 @@ const runJob = (adminId, kind, work) => {
         .then((result) => {
             job.status = 'done';
             job.progress = 100;
-            job.message = kind === 'reset' ? 'Demo data removed' : 'Demo data ready';
+            job.message = COMPLETION_MESSAGES[kind] || 'Done';
             job.result = result;
             job.finishedAt = new Date().toISOString();
         })

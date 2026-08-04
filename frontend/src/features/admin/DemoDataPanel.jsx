@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Database, RotateCcw, Loader2, AlertTriangle } from 'lucide-react';
+import { Database, RotateCcw, Loader2, AlertTriangle, Sparkles } from 'lucide-react';
 import api from '../../services/api';
 
 // Loads and clears the demo dataset.
@@ -14,6 +14,7 @@ const POLL_INTERVAL = 1200;
 const DemoDataPanel = ({ onChanged }) => {
     const [job, setJob] = useState(null);
     const [counts, setCounts] = useState(null);
+    const [chatIndex, setChatIndex] = useState(null);
     const [starting, setStarting] = useState(false);
     const [confirmingReset, setConfirmingReset] = useState(false);
 
@@ -27,6 +28,7 @@ const DemoDataPanel = ({ onChanged }) => {
             const { data } = await api.get('/admin/demo/status');
             setJob(data.job);
             setCounts(data.counts);
+            setChatIndex(data.chat || null);
 
             if (wasRunningRef.current && data.job && data.job.status !== 'running') {
                 wasRunningRef.current = false;
@@ -100,6 +102,7 @@ const DemoDataPanel = ({ onChanged }) => {
                     <span>{counts.modules} modules</span>
                     <span>{counts.assignments} assignments</span>
                     <span>{counts.submissions} submissions</span>
+                    {chatIndex && <span>{chatIndex.indexedChunks} indexed passages</span>}
                 </div>
             )}
 
@@ -139,6 +142,21 @@ const DemoDataPanel = ({ onChanged }) => {
                     {hasDemoData ? 'Reload demo data' : 'Load demo data'}
                 </button>
 
+                <button
+                    type="button"
+                    onClick={() => start('/admin/demo/reindex', 'Indexing')}
+                    disabled={busy || !hasDemoData || (chatIndex && !chatIndex.configured)}
+                    title={
+                        chatIndex && !chatIndex.configured
+                            ? 'Set GEMINI_API_KEY on the server to enable the assistant'
+                            : 'Re-read every PDF and rebuild the assistant’s search index'
+                    }
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    <Sparkles className="h-4 w-4" />
+                    Rebuild chat index
+                </button>
+
                 {confirmingReset ? (
                     <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-600">Remove all demo data?</span>
@@ -175,6 +193,12 @@ const DemoDataPanel = ({ onChanged }) => {
                 Only demo records are affected — data you created yourself is never touched.
                 Demo accounts sign in with their matricule and the password <code className="font-mono">demo1234</code>.
             </p>
+
+            {chatIndex && !chatIndex.configured && (
+                <p className="mt-2 text-xs text-amber-600">
+                    The course assistant is unavailable: set <code className="font-mono">GEMINI_API_KEY</code> on the API service to enable it.
+                </p>
+            )}
         </div>
     );
 };

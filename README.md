@@ -89,6 +89,29 @@ which Render wipes on every deploy.
 
 Demo accounts sign in with their matricule and the password demo1234.
 
+Course assistant
+
+Each module page carries a floating assistant that answers questions from that
+module's own course materials — and only from them. Ask something the notes
+don't cover and it says so rather than inventing an answer; every answer cites
+the material and page it came from.
+
+How it works: uploaded PDFs are read (pdf-parse), split into ~800-token
+passages with ~100 tokens of overlap, embedded with Gemini, and stored in the
+`chunks` table. A question is embedded the same way and scored against that
+module's passages by cosine similarity in Node — the corpus is small enough
+that a vector database would be overkill. The top passages are handed to
+gemini-flash-latest, which is instructed to answer strictly from them.
+
+Setup: set GEMINI_API_KEY on the API service. Without it the app runs exactly
+as before and the assistant hides itself rather than failing. New PDF uploads
+are indexed automatically in the background; "Rebuild chat index" on the admin
+dashboard re-reads everything from scratch.
+
+Access follows the same rules as the rest of the platform: a student can only
+ask about modules in their own programme, a teacher about modules they teach,
+and each user is limited to 20 questions per hour.
+
 Tech Stack
 
 Frontend:
@@ -108,6 +131,8 @@ Express.js
 PostgreSQL (Sequelize)
 
 JWT Authentication
+
+Gemini (embeddings + chat, for the course assistant)
 
 Live demo:
 https://elearn-27007.netlify.app/

@@ -8,6 +8,8 @@ const {
     isTeacherOf,
 } = require('../models');
 const { isUuid, uuidList } = require('../utils/uuid');
+const { ingestMaterial, isPdf } = require('../rag/ingest');
+const { isConfigured } = require('../rag/embeddings');
 
 // Teachers have to be loaded for the authorisation checks below.
 const findAllocation = (id, adminId) =>
@@ -44,6 +46,21 @@ const addContent = async (req, res) => {
     });
 
     res.status(201).json(content);
+
+    // Index the new material for the chatbot. Deliberately after the response:
+    // extraction and embedding take seconds, and a teacher uploading a file
+    // should not wait for them. A failure here leaves the material usable and
+    // simply absent from the index until the next rebuild.
+    indexNewMaterial(content);
+};
+
+// Fire-and-forget indexing of a single uploaded material.
+const indexNewMaterial = (content) => {
+    if (!isPdf(content.fileUrl) || !isConfigured()) return;
+
+    ingestMaterial(content).catch((error) => {
+        console.warn(`Could not index "${content.title}" for chat: ${error.message}`);
+    });
 };
 
 // @desc    Get content for a module
@@ -285,6 +302,8 @@ const bulkAddContent = async (req, res) => {
     }
 
     res.status(201).json(contents);
+
+    for (const content of contents) indexNewMaterial(content);
 };
 
 // @desc    Create assignment for multiple allocations
