@@ -9,6 +9,8 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const { NOTES } = require('./notes');
+const { DEPARTMENTS, topicsFor } = require('./catalog');
+const { buildTopicNote, topicFileName } = require('./topicNotes');
 
 const OUTPUT_DIR = path.join(__dirname, '../../seed-data');
 
@@ -160,13 +162,35 @@ const buildPdf = (note) => {
 const run = () => {
     fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
+    // The subject-area notes: one substantial document per topic area.
     for (const note of NOTES) {
-        const target = path.join(OUTPUT_DIR, note.file);
-        fs.writeFileSync(target, buildPdf(note));
-        console.log(`wrote ${note.file}`);
+        fs.writeFileSync(path.join(OUTPUT_DIR, note.file), buildPdf(note));
+    }
+    console.log(`${NOTES.length} subject notes written`);
+
+    // One note per module+topic pair, so that a material titled "Week 4 —
+    // Divide and Conquer" actually contains divide-and-conquer content. Without
+    // these, every weekly material in a module shared one file and the
+    // assistant could only ever answer about whichever topic that file covered.
+    let topicCount = 0;
+    for (const department of DEPARTMENTS) {
+        for (const [moduleName] of department.modules) {
+            for (const topic of topicsFor(moduleName)) {
+                const file = topicFileName(moduleName, topic);
+                const target = path.join(OUTPUT_DIR, file);
+                if (fs.existsSync(target)) continue;
+
+                fs.writeFileSync(
+                    target,
+                    buildPdf(buildTopicNote(topic, moduleName, department.name))
+                );
+                topicCount += 1;
+            }
+        }
     }
 
-    console.log(`\n${NOTES.length} course notes written to seed-data/`);
+    console.log(`${topicCount} weekly topic notes written`);
+    console.log(`\nAll notes written to seed-data/`);
 };
 
 if (require.main === module) run();

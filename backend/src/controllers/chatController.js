@@ -27,6 +27,7 @@ Rules:
 - Cite the material name and page for every claim, like: (Week 3 — Normalization, p. 2).
 - Quote or paraphrase the excerpts; do not invent definitions, figures, or examples.
 - Keep answers concise and direct. Use plain prose; short lists only when the material is genuinely a list.
+- Write mathematics as plain text, never LaTeX: no dollar signs, no backslash commands, no braces. Write T(n) = aT(n/b) + f(n) and n^(log_b a), not $T(n)$ or $n^{\\log_b a}$.
 - Answer in the language the student asks in.`;
 
 let client = null;

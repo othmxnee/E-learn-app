@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { MessageCircle, X, Send, FileText, Loader2, RotateCcw } from 'lucide-react';
 import api from '../../services/api';
 import { sendChatMessage, openChat, closeChat, clearThread } from './chatSlice';
+import AnswerText from './AnswerText';
 
 // Floating assistant for a single module.
 //
@@ -119,15 +120,17 @@ const ChatWidget = ({ allocationId, moduleName }) => {
                     >
                         <div className={entry.role === 'user' ? 'max-w-[85%]' : 'max-w-[92%]'}>
                             <div
-                                className={`rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap ${
+                                className={`rounded-2xl px-4 py-2.5 text-sm ${
                                     entry.role === 'user'
-                                        ? 'bg-primary text-white'
+                                        ? 'whitespace-pre-wrap bg-primary text-white'
                                         : entry.error
-                                        ? 'bg-red-50 text-red-700'
+                                        ? 'whitespace-pre-wrap bg-red-50 text-red-700'
                                         : 'bg-gray-100 text-gray-800'
                                 }`}
                             >
-                                {entry.content}
+                                {entry.role === 'assistant' && !entry.error
+                                    ? <AnswerText content={entry.content} />
+                                    : entry.content}
                             </div>
 
                             {/* Source chips: which material and page the answer came from. */}

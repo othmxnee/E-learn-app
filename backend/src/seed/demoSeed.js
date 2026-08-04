@@ -26,6 +26,7 @@ const {
 
 const { DEPARTMENTS, ASSIGNMENT_KINDS, topicsFor } = require('./catalog');
 const { NOTES } = require('./notes');
+const { topicFileName } = require('./topicNotes');
 const { createRng, makeHelpers, DEFAULT_SEED } = require('./random');
 
 const BATCH_SIZE = 500;
@@ -416,9 +417,13 @@ const seedDemoData = async ({
     // -------------------------------------------------------------- materials
     report('materials', 'Creating course materials');
 
-    // Only the 15 real PDFs exist on disk; materials reference them by topic
-    // where possible and reuse the rest, so ~180 rows cost 15 files.
+    // Each weekly material gets the note written for its own topic, so a
+    // material titled "Week 4 - Divide and Conquer" contains divide-and-conquer
+    // content. Sharing one file per module made every week look identical to
+    // the assistant, which could then only answer about a single topic.
     const notesByTopic = new Map(NOTES.map((note) => [note.topic, note]));
+
+    // Submissions are student work, not course notes; any real PDF will do.
     const noteFor = (moduleName, index) =>
         notesByTopic.get(moduleName) || NOTES[index % NOTES.length];
 
@@ -449,8 +454,8 @@ const seedDemoData = async ({
                 { label: 'OTHER', weight: 1 },
             ]).label,
             title: `Week ${week} - ${topic}`,
-            fileUrl: `/seed-data/${note.file}`,
-            description: `${topic} for ${allocation._module.name}. Reference notes: ${note.title}.`,
+            fileUrl: `/seed-data/${topicFileName(allocation._module.name, topic)}`,
+            description: `${topic} for ${allocation._module.name}.`,
             createdBy: teacher.id,
             adminId,
             seeded: true,
